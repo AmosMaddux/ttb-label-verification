@@ -138,7 +138,14 @@ Default vision model:
 gpt-5.4-mini
 ```
 
-The model can be changed with the `VISION_MODEL` environment variable.
+This exact model name was verified against the current OpenAI model list on July 12, 2026. The app
+also performs a startup fail-fast model check, and `scripts/readiness_check.py --verify-model` can
+run the same validation before deployment.
+
+The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
+configured model name in sync across these five locations: `app/vision/service.py:24`
+(`DEFAULT_VISION_MODEL`), `README.md:138` (this model block), `README.md:174` (local `.env`
+example), `README.md:537` (Railway environment variables), and `.env.example:3`.
 
 ## Environment Variables
 
