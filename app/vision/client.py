@@ -94,7 +94,8 @@ class OpenAIVisionClient:
 
         from openai import AsyncOpenAI
 
-        self._client = AsyncOpenAI(api_key=api_key, timeout=12.0)
+        timeout = float(os.environ.get("VISION_TIMEOUT_S", "4.5"))
+        self._client = AsyncOpenAI(api_key=api_key, timeout=timeout)
 
     async def extract_structured_label(
         self,
