@@ -79,11 +79,11 @@ def test_models_accept_and_serialize_expected_shapes() -> None:
         normalized_extracted_value="acme",
         message="Matched",
     )
-    result = VerificationResult(verdict="PASS", fields=[field])
+    result = VerificationResult(overall_verdict="APPROVED", latency_ms=0, results=[field])
 
     assert application.brand_name == "Acme Reserve"
     assert extracted.brand_name is None
-    assert result.model_dump()["fields"][0]["status"] == "PASS"
+    assert result.model_dump()["results"][0]["status"] == "PASS"
 
 
 def test_brand_exact_match_passes() -> None:
@@ -486,14 +486,14 @@ def test_misread_government_warning_failure_keeps_extracted_text() -> None:
 def test_all_fields_passing_gives_pass_verdict() -> None:
     result = verify_label(make_application(), make_extracted())
 
-    assert result.verdict == "PASS"
-    assert all(field.status == "PASS" for field in result.fields)
+    assert result.overall_verdict == "APPROVED"
+    assert all(field.status == "PASS" for field in result.results)
 
 
 def test_one_failing_field_gives_needs_review() -> None:
     result = verify_label(make_application(), make_extracted(brand_name="Wrong Brand"))
 
-    assert result.verdict == "NEEDS_REVIEW"
+    assert result.overall_verdict == "NEEDS_REVIEW"
 
 
 def test_multiple_failing_fields_still_gives_needs_review() -> None:
@@ -502,13 +502,13 @@ def test_multiple_failing_fields_still_gives_needs_review() -> None:
         make_extracted(brand_name="Wrong Brand", government_warning="wrong warning"),
     )
 
-    assert result.verdict == "NEEDS_REVIEW"
+    assert result.overall_verdict == "NEEDS_REVIEW"
 
 
 def test_result_includes_one_field_result_per_compared_field() -> None:
     result = verify_label(make_application(), make_extracted())
 
-    assert [field.field for field in result.fields] == [
+    assert [field.field for field in result.results] == [
         "brand_name",
         "class_type",
         "producer",
@@ -523,7 +523,7 @@ def test_failed_government_warning_result_includes_exact_extracted_warning_text(
     extracted_warning = "GOVERNMENT WARNING (1) misread"
 
     result = verify_label(make_application(), make_extracted(government_warning=extracted_warning))
-    warning_result = next(field for field in result.fields if field.field == "government_warning")
+    warning_result = next(field for field in result.results if field.field == "government_warning")
 
     assert warning_result.status == "FAIL"
     assert warning_result.found == extracted_warning
@@ -551,8 +551,8 @@ def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
 
     result = verify_label(application, extracted)
 
-    assert result.verdict == "PASS"
-    assert all(field.status == "PASS" for field in result.fields)
+    assert result.overall_verdict == "APPROVED"
+    assert all(field.status == "PASS" for field in result.results)
 
 
 def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
@@ -576,7 +576,7 @@ def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
     )
 
     result = verify_label(application, extracted)
-    abv_result = next(field for field in result.fields if field.field == "abv")
+    abv_result = next(field for field in result.results if field.field == "abv")
 
-    assert result.verdict == "NEEDS_REVIEW"
+    assert result.overall_verdict == "NEEDS_REVIEW"
     assert abv_result.status == "FAIL"

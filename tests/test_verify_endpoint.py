@@ -194,8 +194,8 @@ async def test_successful_verify_returns_full_verification_result() -> None:
     body = response_body(response)
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "PASS"
-    assert len(body["verification"]["fields"]) == 7
+    assert body["verification"]["overall_verdict"] == "APPROVED"
+    assert len(body["verification"]["results"]) == 7
     assert isinstance(body["latency_ms"], int)
     assert body["latency_ms"] >= 0
     assert body["timings"]["request_total_ms"] >= 0
@@ -212,11 +212,11 @@ async def test_failure_includes_expected_vs_found_and_overall_verdict() -> None:
     response = await call_verify(mock, image=upload_file())
     body = response_body(response)
     brand_result = next(
-        field for field in body["verification"]["fields"] if field["field"] == "brand_name"
+        field for field in body["verification"]["results"] if field["field"] == "brand_name"
     )
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     assert brand_result["status"] == "FAIL"
     assert brand_result["expected"] == "Acme Reserve"
     assert brand_result["found"] == "Wrong Brand"
@@ -230,11 +230,11 @@ async def test_warning_extracted_text_is_surfaced_on_failure() -> None:
     response = await call_verify(mock, image=upload_file())
     body = response_body(response)
     warning_result = next(
-        field for field in body["verification"]["fields"] if field["field"] == "government_warning"
+        field for field in body["verification"]["results"] if field["field"] == "government_warning"
     )
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     assert body["extracted_label"]["government_warning"] == title_case_warning
     assert warning_result["found"] == title_case_warning
 
@@ -250,11 +250,11 @@ async def test_warning_whitespace_only_difference_passes_and_preserves_original(
     response = await call_verify(mock, image=upload_file())
     body = response_body(response)
     warning_result = next(
-        field for field in body["verification"]["fields"] if field["field"] == "government_warning"
+        field for field in body["verification"]["results"] if field["field"] == "government_warning"
     )
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "PASS"
+    assert body["verification"]["overall_verdict"] == "APPROVED"
     assert warning_result["status"] == "PASS"
     assert warning_result["found"] == warning_with_newline
     assert warning_result["normalized_extracted_value"] == CANONICAL_WARNING
@@ -293,7 +293,7 @@ async def test_barefoot_style_cleaned_extraction_returns_pass() -> None:
     )
 
     assert response_status(response) == 200
-    assert response_body(response)["verification"]["verdict"] == "PASS"
+    assert response_body(response)["verification"]["overall_verdict"] == "APPROVED"
 
 
 @pytest.mark.anyio
@@ -328,10 +328,10 @@ async def test_barefoot_style_bad_abv_returns_needs_review() -> None:
         image=upload_file(),
     )
     body = response_body(response)
-    abv_result = next(field for field in body["verification"]["fields"] if field["field"] == "abv")
+    abv_result = next(field for field in body["verification"]["results"] if field["field"] == "abv")
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     assert abv_result["status"] == "FAIL"
 
 
@@ -342,7 +342,7 @@ async def test_partial_extraction_returns_needs_review_not_exception() -> None:
     response = await call_verify(mock, image=upload_file())
 
     assert response_status(response) == 200
-    assert response_body(response)["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert response_body(response)["verification"]["overall_verdict"] == "NEEDS_REVIEW"
 
 
 @pytest.mark.anyio
@@ -504,8 +504,8 @@ async def test_batch_size_one_returns_summary_and_result() -> None:
     assert body["summary"]["needs_review"] == 0
     assert body["summary"]["total"] == 1
     assert body["results"][0]["index"] == 0
-    assert body["results"][0]["status"] == "PASS"
-    assert body["results"][0]["verification"]["verdict"] == "PASS"
+    assert body["results"][0]["status"] == "APPROVED"
+    assert body["results"][0]["verification"]["overall_verdict"] == "APPROVED"
     assert body["results"][0]["timings"]["image_read_ms"] >= 0
     assert body["results"][0]["timings"]["compare_ms"] >= 0
     assert mock.calls == 1
@@ -528,7 +528,7 @@ async def test_batch_mixed_results_have_correct_summary_counts() -> None:
     assert body["summary"]["needs_review"] == 1
     assert body["summary"]["total"] == 2
     assert [item["index"] for item in body["results"]] == [0, 1]
-    assert body["results"][0]["status"] == "PASS"
+    assert body["results"][0]["status"] == "APPROVED"
     assert body["results"][1]["status"] == "NEEDS_REVIEW"
 
 

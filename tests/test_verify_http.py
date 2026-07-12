@@ -115,8 +115,8 @@ async def test_verify_real_multipart_success() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["verification"]["verdict"] == "PASS"
-    assert len(body["verification"]["fields"]) == 7
+    assert body["verification"]["overall_verdict"] == "APPROVED"
+    assert len(body["verification"]["results"]) == 7
     assert mock.calls == 1
 
 
@@ -180,9 +180,9 @@ async def test_verify_real_multipart_warning_case_mismatch_returns_needs_review(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     warning = next(
-        field for field in body["verification"]["fields"] if field["field"] == "government_warning"
+        field for field in body["verification"]["results"] if field["field"] == "government_warning"
     )
     assert warning["status"] == "FAIL"
     assert warning["found"] == title_case_warning
@@ -205,9 +205,9 @@ async def test_verify_real_multipart_warning_whitespace_only_difference_passes()
 
     assert response.status_code == 200
     body = response.json()
-    assert body["verification"]["verdict"] == "PASS"
+    assert body["verification"]["overall_verdict"] == "APPROVED"
     warning = next(
-        field for field in body["verification"]["fields"] if field["field"] == "government_warning"
+        field for field in body["verification"]["results"] if field["field"] == "government_warning"
     )
     assert warning["status"] == "PASS"
     assert warning["found"] == warning_with_extra_space
@@ -249,7 +249,7 @@ async def test_verify_real_multipart_barefoot_style_normalization_passes() -> No
     )
 
     assert response.status_code == 200
-    assert response.json()["verification"]["verdict"] == "PASS"
+    assert response.json()["verification"]["overall_verdict"] == "APPROVED"
 
 
 @pytest.mark.anyio
@@ -268,7 +268,7 @@ async def test_batch_real_multipart_size_one_success() -> None:
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 0
     assert body["summary"]["total"] == 1
-    assert body["results"][0]["status"] == "PASS"
+    assert body["results"][0]["status"] == "APPROVED"
     assert mock.calls == 1
 
 

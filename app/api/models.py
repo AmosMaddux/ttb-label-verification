@@ -61,7 +61,7 @@ class BatchItemResult(BaseModel):
     """Per-label result inside a batch response.
 
     Inputs:
-        The label index, original filename, pass/review status, optional
+        The label index, original filename, approved/review status, optional
         verification/extraction objects, latency/timing metadata, and any
         item-specific validation errors.
 
@@ -71,7 +71,7 @@ class BatchItemResult(BaseModel):
 
     index: int
     filename: str | None
-    status: Literal["PASS", "NEEDS_REVIEW"]
+    status: Literal["APPROVED", "NEEDS_REVIEW"]
     verification: VerificationResult | None = None
     extracted_label: ExtractedLabel | None = None
     latency_ms: int

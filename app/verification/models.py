@@ -77,12 +77,14 @@ class VerificationResult(BaseModel):
     """Overall result for all seven required label fields.
 
     Inputs:
-        A final verdict plus the ordered list of `FieldResult` objects.
+        A final verdict, comparison latency, and the ordered list of
+        `FieldResult` objects.
 
     Outputs:
         The verifier's result object. Any failing field produces
-        `NEEDS_REVIEW`; all passing fields produce `PASS`.
+        `NEEDS_REVIEW`; all passing fields produce `APPROVED`.
     """
 
-    verdict: Literal["PASS", "NEEDS_REVIEW"]
-    fields: list[FieldResult]
+    overall_verdict: Literal["APPROVED", "NEEDS_REVIEW"]
+    latency_ms: int
+    results: list[FieldResult]

@@ -654,7 +654,7 @@ def verify_label(application: ApplicationData, extracted: ExtractedLabel) -> Ver
 
     Outputs:
         A `VerificationResult` containing seven ordered field results and
-        `PASS` only when every field passes; otherwise `NEEDS_REVIEW`.
+        `APPROVED` only when every field passes; otherwise `NEEDS_REVIEW`.
     """
     fields = [
         compare_brand_name(application.brand_name, extracted.brand_name),
@@ -665,5 +665,5 @@ def verify_label(application: ApplicationData, extracted: ExtractedLabel) -> Ver
         compare_net_contents(application.net_contents, extracted.net_contents),
         compare_government_warning(application.government_warning, extracted.government_warning),
     ]
-    verdict = "NEEDS_REVIEW" if any(field.status == "FAIL" for field in fields) else "PASS"
-    return VerificationResult(verdict=verdict, fields=fields)
+    overall_verdict = "NEEDS_REVIEW" if any(field.status == "FAIL" for field in fields) else "APPROVED"
+    return VerificationResult(overall_verdict=overall_verdict, latency_ms=0, results=fields)

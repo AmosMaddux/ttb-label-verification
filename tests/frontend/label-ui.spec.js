@@ -16,7 +16,7 @@ const passResponse = {
     {
       index: 0,
       filename: "label.jpg",
-      status: "PASS",
+      status: "APPROVED",
       latency_ms: 1100,
       errors: {},
       extracted_label: {
@@ -29,8 +29,9 @@ const passResponse = {
         government_warning: "GOVERNMENT WARNING: exact text",
       },
       verification: {
-        verdict: "PASS",
-        fields: Object.keys(fields).map((field) => ({
+        overall_verdict: "APPROVED",
+        latency_ms: 100,
+        results: Object.keys(fields).map((field) => ({
           field,
           status: "PASS",
           expected: fields[field],
@@ -56,8 +57,9 @@ const mixedBatchResponse = {
       filename: "label-2.jpg",
       status: "NEEDS_REVIEW",
       verification: {
-        verdict: "NEEDS_REVIEW",
-        fields: [
+        overall_verdict: "NEEDS_REVIEW",
+        latency_ms: 100,
+        results: [
           {
             field: "brand_name",
             status: "FAIL",

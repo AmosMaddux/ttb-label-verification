@@ -233,7 +233,8 @@ async def _verify_image_data(
 
     compare_start = time.perf_counter()
     verification = verify_label(application, extracted)
-    timings["compare_ms"] = _latency_ms(compare_start)
+    verification.latency_ms = _latency_ms(compare_start)
+    timings["compare_ms"] = verification.latency_ms
     timings["verify_image_ms"] = _latency_ms(start)
 
     return VerifyResponse(
@@ -329,7 +330,7 @@ async def _verify_batch_item(
     return BatchItemResult(
         index=index,
         filename=filename,
-        status=result.verification.verdict,
+        status=result.verification.overall_verdict,
         verification=result.verification,
         extracted_label=result.extracted_label,
         latency_ms=_latency_ms(start),
@@ -429,10 +430,10 @@ async def verify_endpoint(
         )
 
     latency = _latency_ms(start)
-    failure_count = sum(field.status == "FAIL" for field in result.verification.fields)
+    failure_count = sum(field.status == "FAIL" for field in result.verification.results)
     _log_request(
         latency_ms=latency,
-        verdict=result.verification.verdict,
+        verdict=result.verification.overall_verdict,
         failure_count=failure_count,
         content_type=content_type,
         upload_size=upload_size,
@@ -447,7 +448,7 @@ async def verify_endpoint(
             "image_read_ms": image_read_ms,
             "request_total_ms": latency,
             "failure_count": failure_count,
-            "verdict": result.verification.verdict,
+            "overall_verdict": result.verification.overall_verdict,
         },
     )
 
@@ -568,7 +569,7 @@ async def verify_batch_endpoint(
             {"server": "Unexpected internal failure."},
         )
 
-    passed = sum(item.status == "PASS" for item in results)
+    passed = sum(item.status == "APPROVED" for item in results)
     needs_review = sum(item.status == "NEEDS_REVIEW" for item in results)
     latency = _latency_ms(start)
 

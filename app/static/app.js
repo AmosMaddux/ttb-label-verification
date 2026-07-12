@@ -157,14 +157,14 @@ function renderSingleResult(item, summary) {
   batchResults.innerHTML = "";
   extractedDetails.hidden = false;
 
-  const verdict = item.verification?.verdict || item.status;
-  verdictBadge.textContent = verdict === "PASS" ? "APPROVED" : "NEEDS REVIEW";
-  verdictBadge.className = `verdict-badge ${verdict === "PASS" ? "pass" : "review"}`;
+  const verdict = item.verification?.overall_verdict || item.status;
+  verdictBadge.textContent = verdict === "APPROVED" ? "APPROVED" : "NEEDS REVIEW";
+  verdictBadge.className = `verdict-badge ${verdict === "APPROVED" ? "pass" : "review"}`;
   latency.textContent = `Checked in ${(summary.latency_ms / 1000).toFixed(1)} seconds`;
 
   const firstCard = labelCards()[0];
   if (firstCard && item.verification) {
-    renderFields(firstCard, item.verification.fields);
+    renderFields(firstCard, item.verification.results);
   }
   renderExtracted(item.extracted_label || {});
 }
@@ -191,13 +191,13 @@ function renderBatchResult(body) {
 
   body.results.forEach((item) => {
     const details = document.createElement("details");
-    details.className = `batch-result ${item.status === "PASS" ? "approved" : "review"}`;
+    details.className = `batch-result ${item.status === "APPROVED" ? "approved" : "review"}`;
 
     const label = item.filename || `Label ${item.index + 1}`;
     details.innerHTML = `
       <summary>
         <span>${label}</span>
-        <span>${item.status === "PASS" ? "APPROVED" : "NEEDS REVIEW"}</span>
+        <span>${item.status === "APPROVED" ? "APPROVED" : "NEEDS REVIEW"}</span>
         <span class="details-action">View details</span>
       </summary>
       <div class="batch-detail"></div>
@@ -205,8 +205,8 @@ function renderBatchResult(body) {
 
     const detail = details.querySelector(".batch-detail");
     if (item.verification) {
-      const failed = item.verification.fields.filter((field) => field.status === "FAIL");
-      const passed = item.verification.fields.filter((field) => field.status === "PASS");
+      const failed = item.verification.results.filter((field) => field.status === "FAIL");
+      const passed = item.verification.results.filter((field) => field.status === "PASS");
       [...failed, ...passed].forEach((field) => {
         const row = document.createElement("article");
         row.className = `field-result ${field.status.toLowerCase()}`;
@@ -261,7 +261,7 @@ function renderResult(body) {
   labelCards().forEach((card, index) => {
     const item = body.results[index];
     if (item?.verification) {
-      renderFields(card, item.verification.fields);
+      renderFields(card, item.verification.results);
     }
   });
   renderBatchResult(body);
