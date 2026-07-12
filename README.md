@@ -12,7 +12,9 @@ The app is intentionally stateless. It has no database and does not submit anyth
 - Health check: https://ttb-label-verification-production-b67a.up.railway.app/health
 - Last live verification: June 22, 2026
 - Single-label target: under 5 seconds
-- Observed live single-label range during final audit: 1421 ms to 2316 ms
+- Measured single-label p50 latency: pending live re-measurement against 5-second target
+- Measured single-label p95 latency: pending live re-measurement against 5-second target
+- Measurement method: pending; run `python scripts/readiness_check.py --base-url <deployed-or-local-url> --verify --verify-runs <N>` with a real label photo and application fields.
 - Batch support: up to 5 labels per request
 
 ## What It Does
@@ -199,9 +201,10 @@ Run health and page checks against a local or deployed app:
 python scripts/readiness_check.py --base-url http://127.0.0.1:8000
 ```
 
-To run an optional live single-label verification, provide an ignored local image and the seven
-application fields through environment variables, then add `--verify`. This may use the deployed
-vision model and incur API cost.
+To run optional live single-label verification checks, provide an ignored local image and the seven
+application fields through environment variables, then add `--verify`. Use `--verify-runs N` to run
+N sequential `/verify` requests and report API latency p50/p95 from the response `latency_ms`
+values. This may use the deployed vision model and incur API cost.
 
 ## API Endpoints
 

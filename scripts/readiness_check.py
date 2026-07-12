@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import uuid
+from math import ceil
 from pathlib import Path
 from typing import Any
 from urllib import request
@@ -61,6 +62,12 @@ def main() -> int:
         help="Also POST /verify using local image and fields from env vars.",
     )
     parser.add_argument(
+        "--verify-runs",
+        default=1,
+        type=positive_int,
+        help="Number of sequential /verify requests to run when --verify is set.",
+    )
+    parser.add_argument(
         "--verify-model",
         action="store_true",
         help="Also confirm VISION_MODEL appears in OpenAI's live models list.",
@@ -74,7 +81,7 @@ def main() -> int:
     ]
 
     if args.verify:
-        checks.append(check_verify(f"{base_url}/verify"))
+        checks.append(check_verify(f"{base_url}/verify", runs=args.verify_runs))
     if args.verify_model:
         checks.append(check_model())
 
@@ -110,16 +117,17 @@ def check_get(url: str, *, expected_json: dict[str, Any] | None = None) -> dict[
         return failure(f"GET {url}", start, exc)
 
 
-def check_verify(url: str) -> dict[str, Any]:
-    """Post one verification request using environment-provided sample data.
+def check_verify(url: str, *, runs: int = 1) -> dict[str, Any]:
+    """Post one or more verification requests using environment-provided sample data.
 
     Inputs:
         URL for the `/verify` endpoint. Image path and all field values are read
         from `READINESS_LABEL_IMAGE` and `READINESS_<FIELD>` environment vars.
+        `runs` controls how many sequential requests are sent.
 
     Outputs:
-        A check-result dictionary including verdict and API latency on success,
-        or missing-input/error details on failure.
+        A check-result dictionary including verdicts, per-request API latencies,
+        p50/p95 API latency statistics, or missing-input/error details.
     """
     start = time.perf_counter()
     image_path = os.environ.get("READINESS_LABEL_IMAGE")
@@ -139,28 +147,58 @@ def check_verify(url: str) -> dict[str, Any]:
         }
 
     try:
-        body, content_type = multipart_body(
-            fields={field: value or "" for field, value in fields.items()},
-            image_path=Path(image_path),
-        )
-        req = request.Request(
-            url,
-            data=body,
-            headers={"Content-Type": content_type},
-            method="POST",
-        )
-        response = request.urlopen(req, timeout=30)
-        payload = json.loads(response.read().decode("utf-8"))
+        payloads: list[dict[str, Any]] = []
+        statuses: list[int] = []
+        for _ in range(runs):
+            body, content_type = multipart_body(
+                fields={field: value or "" for field, value in fields.items()},
+                image_path=Path(image_path),
+            )
+            req = request.Request(
+                url,
+                data=body,
+                headers={"Content-Type": content_type},
+                method="POST",
+            )
+            response = request.urlopen(req, timeout=30)
+            statuses.append(response.status)
+            payloads.append(json.loads(response.read().decode("utf-8")))
+
+        api_latencies = [_api_latency_ms(payload) for payload in payloads]
         return {
             "name": f"POST {url}",
-            "ok": 200 <= response.status < 300,
-            "status": response.status,
+            "ok": all(200 <= status < 300 for status in statuses),
+            "status": statuses[-1],
+            "runs": runs,
             "latency_ms": elapsed_ms(start),
-            "overall_verdict": payload.get("verification", {}).get("overall_verdict"),
-            "api_latency_ms": payload.get("latency_ms"),
+            "overall_verdict": payloads[-1].get("verification", {}).get("overall_verdict"),
+            "overall_verdicts": [
+                payload.get("verification", {}).get("overall_verdict") for payload in payloads
+            ],
+            "api_latency_ms": api_latencies[-1],
+            "api_latency_ms_values": api_latencies,
+            "api_latency_p50_ms": percentile_nearest_rank(api_latencies, 50),
+            "api_latency_p95_ms": percentile_nearest_rank(api_latencies, 95),
         }
-    except (OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError, ValueError) as exc:
         return failure(f"POST {url}", start, exc)
+
+
+def _api_latency_ms(payload: dict[str, Any]) -> int:
+    """Extract the API-reported latency from a verification response."""
+    latency = payload.get("latency_ms")
+    if not isinstance(latency, int):
+        raise ValueError("Verification response did not include integer latency_ms.")
+    return latency
+
+
+def percentile_nearest_rank(values: list[int], percentile: int) -> int | None:
+    """Calculate a nearest-rank percentile for integer latency values."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, ceil((percentile / 100) * len(ordered)) - 1)
+    return ordered[index]
 
 
 def check_model() -> dict[str, Any]:
@@ -247,6 +285,14 @@ def elapsed_ms(start: float) -> int:
         Integer milliseconds elapsed since `start`.
     """
     return int((time.perf_counter() - start) * 1000)
+
+
+def positive_int(value: str) -> int:
+    """Argparse type for positive integers."""
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("value must be at least 1")
+    return parsed
 
 
 if __name__ == "__main__":
