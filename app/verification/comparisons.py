@@ -399,9 +399,9 @@ def compare_product_class(application: str, extracted: str | None) -> FieldResul
         Expected product class text and optional extracted class text.
 
     Outputs:
-        A fuzzy `FieldResult` for `product_class`.
+        A fuzzy `FieldResult` for `class_type`.
     """
-    return _compare_fuzzy("product_class", application, extracted)
+    return _compare_fuzzy("class_type", application, extracted)
 
 
 def compare_producer(application: str, extracted: str | None) -> FieldResult:
@@ -658,7 +658,7 @@ def verify_label(application: ApplicationData, extracted: ExtractedLabel) -> Ver
     """
     fields = [
         compare_brand_name(application.brand_name, extracted.brand_name),
-        compare_product_class(application.product_class, extracted.product_class),
+        compare_product_class(application.class_type, extracted.class_type),
         compare_producer(application.producer, extracted.producer),
         compare_country_of_origin(application.country_of_origin, extracted.country_of_origin),
         compare_abv(application.abv, extracted.abv),

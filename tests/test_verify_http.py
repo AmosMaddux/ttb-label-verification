@@ -49,7 +49,7 @@ def image_bytes(image_format: str = "JPEG") -> bytes:
 def matching_extracted_label(**overrides: str | None) -> ExtractedLabel:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "USA",
         "abv": "13.5% Alc. by Vol.",
@@ -63,7 +63,7 @@ def matching_extracted_label(**overrides: str | None) -> ExtractedLabel:
 def form_data(**overrides: str) -> dict[str, str]:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "United States",
         "abv": "13.5%",
@@ -223,7 +223,7 @@ async def test_verify_real_multipart_barefoot_style_normalization_passes() -> No
         [
             ExtractedLabel(
                 brand_name="BAREFOOT",
-                product_class="PINK MOSCATO",
+                class_type="PINK MOSCATO",
                 producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
                 country_of_origin="CALIFORNIA",
                 abv="14.5%",
@@ -238,7 +238,7 @@ async def test_verify_real_multipart_barefoot_style_normalization_passes() -> No
         "/verify",
         data=form_data(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="BAREFOOT WINES",
             country_of_origin="USA",
             abv="14.5%",

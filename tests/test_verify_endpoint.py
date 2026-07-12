@@ -105,7 +105,7 @@ def upload_file(content: bytes | None = None, content_type: str = "image/jpeg") 
 def matching_extracted_label(**overrides: str | None) -> ExtractedLabel:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "USA",
         "abv": "13.5% Alc. by Vol.",
@@ -119,7 +119,7 @@ def matching_extracted_label(**overrides: str | None) -> ExtractedLabel:
 def form_data(**overrides: str | None) -> dict[str, str | None]:
     values: dict[str, str | None] = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "United States",
         "abv": "13.5%",
@@ -162,7 +162,7 @@ async def call_verify(
         vision_service_provider=provider_for(mock),
         image=image,
         brand_name=values.get("brand_name"),
-        product_class=values.get("product_class"),
+        class_type=values.get("class_type"),
         producer=values.get("producer"),
         country_of_origin=values.get("country_of_origin"),
         abv=values.get("abv"),
@@ -269,7 +269,7 @@ async def test_barefoot_style_cleaned_extraction_returns_pass() -> None:
     mock = MockVisionService(
         extracted=ExtractedLabel(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
             country_of_origin="CALIFORNIA",
             abv="14.5%",
@@ -282,7 +282,7 @@ async def test_barefoot_style_cleaned_extraction_returns_pass() -> None:
         mock,
         data=form_data(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="BAREFOOT WINES",
             country_of_origin="USA",
             abv="14.5%",
@@ -305,7 +305,7 @@ async def test_barefoot_style_bad_abv_returns_needs_review() -> None:
     mock = MockVisionService(
         extracted=ExtractedLabel(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
             country_of_origin="CALIFORNIA",
             abv="IA 5c, ME 15%",
@@ -318,7 +318,7 @@ async def test_barefoot_style_bad_abv_returns_needs_review() -> None:
         mock,
         data=form_data(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="BAREFOOT WINES",
             country_of_origin="USA",
             abv="14.5%",

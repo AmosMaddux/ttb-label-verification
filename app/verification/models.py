@@ -16,7 +16,7 @@ class ApplicationData(BaseModel):
     """
 
     brand_name: str
-    product_class: str
+    class_type: str
     producer: str
     country_of_origin: str
     abv: str
@@ -39,7 +39,7 @@ class ExtractedLabel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     brand_name: str | None = None
-    product_class: str | None = None
+    class_type: str | None = None
     producer: str | None = None
     country_of_origin: str | None = None
     abv: str | None = None

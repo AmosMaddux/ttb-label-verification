@@ -65,7 +65,7 @@ def non_label_image_bytes() -> bytes:
 def populated_payload() -> dict[str, str]:
     return {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "United States",
         "abv": "13.5% Alc. by Vol.",

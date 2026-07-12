@@ -25,7 +25,7 @@ let progressStartedAt = 0;
 
 const fieldLabels = {
   brand_name: "Brand name",
-  product_class: "Product type",
+  class_type: "Product type",
   producer: "Producer or company",
   country_of_origin: "Country",
   abv: "Alcohol percentage",

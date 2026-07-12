@@ -34,7 +34,7 @@ Extract these seven fields:
 1. brand_name
    The brand name shown on the label.
 
-2. product_class
+2. class_type
    The product type or class shown on the label, such as wine, red wine, vodka, whiskey, beer, cider, or another visible class/type statement.
 
 3. producer

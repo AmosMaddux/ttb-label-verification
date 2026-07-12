@@ -40,7 +40,7 @@ BAREFOOT_WARNING_WITH_LINE_BREAKS = (
 def make_application(**overrides: str) -> ApplicationData:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "United States",
         "abv": "13.5%",
@@ -54,7 +54,7 @@ def make_application(**overrides: str) -> ApplicationData:
 def make_extracted(**overrides: str | None) -> ExtractedLabel:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "USA",
         "abv": "13.5 % alc/vol",
@@ -125,13 +125,13 @@ def test_brand_materially_different_value_fails() -> None:
     assert result.status == "FAIL"
 
 
-def test_product_class_fuzzy_equivalent_passes() -> None:
+def test_class_type_fuzzy_equivalent_passes() -> None:
     result = compare_product_class("Cabernet Sauvignon", "cabernet-sauvignon")
 
     assert result.status == "PASS"
 
 
-def test_product_class_wrong_class_fails() -> None:
+def test_class_type_wrong_class_fails() -> None:
     result = compare_product_class("Red Wine", "Vodka")
 
     assert result.status == "FAIL"
@@ -510,7 +510,7 @@ def test_result_includes_one_field_result_per_compared_field() -> None:
 
     assert [field.field for field in result.fields] == [
         "brand_name",
-        "product_class",
+        "class_type",
         "producer",
         "country_of_origin",
         "abv",
@@ -532,7 +532,7 @@ def test_failed_government_warning_result_includes_exact_extracted_warning_text(
 def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
     application = ApplicationData(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="BAREFOOT WINES",
         country_of_origin="USA",
         abv="14.5%",
@@ -541,7 +541,7 @@ def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
     )
     extracted = ExtractedLabel(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
         country_of_origin="CALIFORNIA",
         abv="14.5%",
@@ -558,7 +558,7 @@ def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
 def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
     application = ApplicationData(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="BAREFOOT WINES",
         country_of_origin="USA",
         abv="14.5%",
@@ -567,7 +567,7 @@ def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
     )
     extracted = ExtractedLabel(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
         country_of_origin="CALIFORNIA",
         abv="IA 5c, ME 15%",

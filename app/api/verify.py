@@ -31,7 +31,7 @@ MAX_BATCH_SIZE = 5
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 REQUIRED_FIELDS = [
     "brand_name",
-    "product_class",
+    "class_type",
     "producer",
     "country_of_origin",
     "abv",
@@ -352,7 +352,7 @@ async def verify_endpoint(
     vision_service_provider: Annotated[VisionServiceProvider, Depends(get_vision_service_provider)],
     image: Annotated[UploadFile | None, File()] = None,
     brand_name: OptionalForm = None,
-    product_class: OptionalForm = None,
+    class_type: OptionalForm = None,
     producer: OptionalForm = None,
     country_of_origin: OptionalForm = None,
     abv: OptionalForm = None,
@@ -374,7 +374,7 @@ async def verify_endpoint(
 
     field_values = {
         "brand_name": brand_name,
-        "product_class": product_class,
+        "class_type": class_type,
         "producer": producer,
         "country_of_origin": country_of_origin,
         "abv": abv,

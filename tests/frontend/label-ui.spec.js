@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 
 const fields = {
   brand_name: "Acme Reserve",
-  product_class: "Red Wine",
+  class_type: "Red Wine",
   producer: "Acme Winery LLC",
   country_of_origin: "United States",
   abv: "13.5",
@@ -21,7 +21,7 @@ const passResponse = {
       errors: {},
       extracted_label: {
         brand_name: "Acme Reserve",
-        product_class: "Red Wine",
+        class_type: "Red Wine",
         producer: "Acme Winery LLC",
         country_of_origin: "USA",
         abv: "13.5% Alc. by Vol.",
@@ -86,7 +86,7 @@ async function setImage(card, name = "label.jpg") {
 async function fillCard(card) {
   await setImage(card);
   await card.locator('[data-field="brand_name"]').fill(fields.brand_name);
-  await card.locator('[data-field="product_class"]').fill(fields.product_class);
+  await card.locator('[data-field="class_type"]').fill(fields.class_type);
   await card.locator('[data-field="producer"]').fill(fields.producer);
   await card.locator('[data-field="country_of_origin"]').selectOption(fields.country_of_origin);
   await card.locator('[data-field="abv"]').fill(fields.abv);
