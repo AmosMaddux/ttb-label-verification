@@ -7,12 +7,13 @@ detail for label text extraction.
 
 from dataclasses import dataclass
 from io import BytesIO
+import os
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-MAX_LONG_EDGE = 1400
-JPEG_QUALITY = 76
+MAX_LONG_EDGE = int(os.environ.get("MAX_LONG_EDGE", "1400"))
+JPEG_QUALITY = int(os.environ.get("JPEG_QUALITY", "76"))
 
 
 class ImagePreprocessingError(ValueError):
