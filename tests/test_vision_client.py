@@ -1,7 +1,9 @@
 import sys
 from types import SimpleNamespace
 
-from app.vision.client import OpenAIVisionClient
+import pytest
+
+from app.vision.client import OpenAIVisionClient, VisionConfigurationError
 
 
 class FakeAsyncOpenAI:
@@ -35,3 +37,12 @@ def test_openai_vision_client_honors_timeout_env(monkeypatch) -> None:
     OpenAIVisionClient()
 
     assert fake_openai.calls == [{"api_key": "test-key", "timeout": 2.0}]
+
+
+def test_openai_vision_client_rejects_invalid_timeout_env(monkeypatch) -> None:
+    install_fake_openai(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("VISION_TIMEOUT_S", "fast")
+
+    with pytest.raises(VisionConfigurationError, match="VISION_TIMEOUT_S"):
+        OpenAIVisionClient()

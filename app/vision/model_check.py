@@ -7,7 +7,7 @@ import os
 from collections.abc import Iterable
 from typing import Any, Mapping
 
-from app.vision.client import VisionConfigurationError
+from app.vision.config import VisionConfigurationError, env_float
 from app.vision.service import DEFAULT_VISION_MODEL
 
 
@@ -62,24 +62,45 @@ async def validate_configured_model_available(client: Any | None = None) -> str:
         configured model is absent from the live model list.
     """
     api_key = os.environ.get("OPENAI_API_KEY")
+    owns_client = client is None
     if client is None:
         if not api_key:
             raise VisionConfigurationError("OPENAI_API_KEY is required to verify VISION_MODEL.")
 
         from openai import AsyncOpenAI
 
-        timeout = float(os.environ.get("VISION_TIMEOUT_S", "4.5"))
+        timeout = env_float("VISION_TIMEOUT_S", 4.5)
         client = AsyncOpenAI(api_key=api_key, timeout=timeout)
 
-    model = os.environ.get("VISION_MODEL", DEFAULT_VISION_MODEL)
-    response = await client.models.list()
-    model_ids = set(_extract_model_ids(response))
+    try:
+        model = os.environ.get("VISION_MODEL", DEFAULT_VISION_MODEL)
+        response = await client.models.list()
+        model_ids = await _collect_model_ids(response)
 
-    if model not in model_ids:
-        raise VisionConfigurationError(
-            f"Configured VISION_MODEL '{model}' was not found in OpenAI's available model list."
-        )
-    return model
+        if model not in model_ids:
+            raise VisionConfigurationError(
+                f"Configured VISION_MODEL '{model}' was not found in OpenAI's available model list."
+            )
+        return model
+    finally:
+        if owns_client:
+            await _close_client(client)
+
+
+async def _collect_model_ids(first_page: Any) -> set[str]:
+    """Collect model IDs across SDK-style paginated list responses."""
+    model_ids: set[str] = set()
+    page = first_page
+    while page is not None:
+        model_ids.update(_extract_model_ids(page))
+        has_next_page = getattr(page, "has_next_page", None)
+        get_next_page = getattr(page, "get_next_page", None)
+        if not callable(has_next_page) or not callable(get_next_page):
+            break
+        if not await _maybe_await(has_next_page()):
+            break
+        page = await _maybe_await(get_next_page())
+    return model_ids
 
 
 def _extract_model_ids(response: Any) -> Iterable[str]:
@@ -92,6 +113,21 @@ def _extract_model_ids(response: Any) -> Iterable[str]:
             model_id = getattr(item, "id", None)
         if isinstance(model_id, str):
             yield model_id
+
+
+async def _close_client(client: Any) -> None:
+    """Best-effort close for OpenAI SDK clients and test doubles."""
+    for method_name in ("aclose", "close"):
+        close = getattr(client, method_name, None)
+        if callable(close):
+            await _maybe_await(close())
+            return
+
+
+async def _maybe_await(value: Any) -> Any:
+    if hasattr(value, "__await__"):
+        return await value
+    return value
 
 
 def _truthy(value: str | None) -> bool:

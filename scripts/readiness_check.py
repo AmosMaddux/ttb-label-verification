@@ -233,6 +233,7 @@ def failure(name: str, start: float, exc: Exception) -> dict[str, Any]:
         "status": getattr(exc, "code", None),
         "latency_ms": elapsed_ms(start),
         "error": type(exc).__name__,
+        "message": str(exc),
     }
 
 

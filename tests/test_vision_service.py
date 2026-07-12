@@ -123,6 +123,21 @@ def test_preprocessing_honors_max_long_edge_env_on_import(monkeypatch: pytest.Mo
         importlib.reload(vision_service_module)
 
 
+@pytest.mark.parametrize("env_var", ["MAX_LONG_EDGE", "JPEG_QUALITY"])
+def test_preprocessing_rejects_invalid_integer_env(
+    monkeypatch: pytest.MonkeyPatch,
+    env_var: str,
+) -> None:
+    monkeypatch.setenv(env_var, "large")
+    try:
+        with pytest.raises(VisionConfigurationError, match=env_var):
+            importlib.reload(preprocessing)
+    finally:
+        monkeypatch.delenv(env_var, raising=False)
+        importlib.reload(preprocessing)
+        importlib.reload(vision_service_module)
+
+
 def test_preprocessing_does_not_enlarge_small_images() -> None:
     prepared = prepare_image(image_bytes(size=(500, 300)))
 

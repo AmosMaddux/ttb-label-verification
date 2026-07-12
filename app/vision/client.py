@@ -12,19 +12,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
-
-class VisionConfigurationError(RuntimeError):
-    """Raised when real vision extraction cannot be configured.
-
-    Inputs:
-        A message describing the missing or invalid configuration.
-
-    Outputs:
-        An exception caught by callers/scripts that need to explain setup
-        problems, most commonly a missing `OPENAI_API_KEY`.
-    """
-
-    pass
+from app.vision.config import VisionConfigurationError, env_float
 
 
 @dataclass(frozen=True)
@@ -94,8 +82,18 @@ class OpenAIVisionClient:
 
         from openai import AsyncOpenAI
 
-        timeout = float(os.environ.get("VISION_TIMEOUT_S", "4.5"))
+        timeout = env_float("VISION_TIMEOUT_S", 4.5)
         self._client = AsyncOpenAI(api_key=api_key, timeout=timeout)
+
+    async def aclose(self) -> None:
+        """Close the underlying async OpenAI client when supported."""
+        for method_name in ("aclose", "close"):
+            close = getattr(self._client, method_name, None)
+            if callable(close):
+                result = close()
+                if hasattr(result, "__await__"):
+                    await result
+                return
 
     async def extract_structured_label(
         self,

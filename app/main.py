@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.verify import router as verify_router
+from app.api.verify import _get_cached_vision_service, router as verify_router
 from app.vision.model_check import validate_configured_model_if_enabled
 
 
@@ -29,7 +29,32 @@ async def validate_startup_vision_model() -> None:
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Run startup checks before serving traffic."""
     await validate_startup_vision_model()
-    yield
+    try:
+        yield
+    finally:
+        await close_cached_vision_service()
+
+
+async def close_cached_vision_service() -> None:
+    """Close and clear the cached vision service if it has been created."""
+    if _get_cached_vision_service.cache_info().currsize == 0:
+        return
+
+    service = _get_cached_vision_service()
+    try:
+        await _close_if_supported(service.client)
+    finally:
+        _get_cached_vision_service.cache_clear()
+
+
+async def _close_if_supported(client: object) -> None:
+    for method_name in ("aclose", "close"):
+        close = getattr(client, method_name, None)
+        if callable(close):
+            result = close()
+            if hasattr(result, "__await__"):
+                await result
+            return
 
 
 app = FastAPI(title="TTB Label Verification POC", lifespan=lifespan)
