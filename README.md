@@ -40,15 +40,16 @@ The app verifies these seven fields:
 
 Most fields are forgiving because OCR and label formatting vary. The government warning is strict
 for wording, punctuation, and capitalization, while tolerating whitespace-only OCR differences.
+Fuzzy text matches pass at a score of 90 or higher.
 
 | Field | Match type |
 | --- | --- |
-| Brand name | Fuzzy token-sort match |
-| Product type | Fuzzy token-sort match |
-| Producer or company | Fuzzy token-sort match after role/location cleanup |
+| Brand name | Fuzzy token-sort match, threshold 90 |
+| Product type | Fuzzy token-sort match, threshold 90 |
+| Producer or company | Fuzzy match after role/location cleanup, threshold 90 |
 | Country | Exact match after country, state, province, and wine-region normalization |
-| Alcohol percentage | Numeric ABV normalization with tolerance |
-| Bottle size | Unit normalization to milliliters with tolerance |
+| Alcohol percentage | Numeric ABV normalization, ±0.1 percentage points |
+| Bottle size | Unit normalization to milliliters, ±1 mL |
 | Government warning | Case-sensitive exact match after whitespace collapse |
 
 Whitespace-only OCR differences such as line breaks, tabs, repeated spaces, or leading/trailing
@@ -58,8 +59,9 @@ wording must still match.
 Country matching normalizes common wine regions and subdivisions to their countries, such as
 `California` to `United States`, `Mendoza` to `Argentina`, and `Bordeaux` to `France`. Producer
 matching ignores common role phrases and trailing locations, such as `VINTED & BOTTLED BY ...,
-MODESTO, CALIFORNIA`, while still rejecting unrelated company names. ABV matching prefers numbers
-attached to alcohol wording and does not loosen tolerance to hide bad OCR.
+MODESTO, CALIFORNIA`, while still rejecting unrelated company names. ABV matching tolerates only
+±0.1 percentage points and prefers numbers attached to alcohol wording. Bottle-size matching
+tolerates only ±1 mL after converting both values to milliliters.
 
 Verdict rule:
 
