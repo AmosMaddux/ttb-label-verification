@@ -231,7 +231,24 @@ net_contents
 government_warning
 ```
 
-Response shape:
+Example request:
+
+Use a real label photo for `image`; replace the sample path with the path to a local image file on
+your machine.
+
+```bash
+curl -X POST http://127.0.0.1:8000/verify \
+  -F "image=@/path/to/your-label-photo.jpg" \
+  -F "brand_name=Example Cellars Reserve" \
+  -F "class_type=Red Wine" \
+  -F "producer=Example Cellars LLC" \
+  -F "country_of_origin=United States" \
+  -F "abv=13.5%" \
+  -F "net_contents=750 mL" \
+  -F "government_warning=GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+```
+
+Successful response:
 
 ```json
 {
@@ -242,33 +259,56 @@ Response shape:
       {
         "field": "brand_name",
         "status": "PASS",
-        "expected": "Acme Reserve",
-        "found": "Acme Reserve",
+        "expected": "Example Cellars Reserve",
+        "found": "Example Cellars Reserve",
         "match_type": "fuzzy_token_sort_ratio",
         "score": 100.0,
-        "normalized_application_value": "acme reserve",
-        "normalized_extracted_value": "acme reserve",
+        "normalized_application_value": "example cellars reserve",
+        "normalized_extracted_value": "example cellars reserve",
         "message": "Fuzzy match passed."
       }
     ]
   },
-  "latency_ms": 1421,
+  "latency_ms": 1380,
   "vision_extraction_failed": false,
   "extracted_label": {
-    "brand_name": "Acme Reserve",
+    "brand_name": "Example Cellars Reserve",
     "class_type": "Red Wine",
-    "producer": "Acme Winery LLC",
-    "country_of_origin": "USA",
+    "producer": "Example Cellars LLC",
+    "country_of_origin": "United States",
     "abv": "13.5% Alc. by Vol.",
     "net_contents": "750 mL",
-    "government_warning": "GOVERNMENT WARNING: exact text",
-    "raw_text": "Complete transcribed label text",
-    "extraction_confidence": 0.94
+    "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+    "raw_text": "Example Cellars Reserve\nRed Wine\n13.5% Alc. by Vol.\n750 mL\nGOVERNMENT WARNING: ...",
+    "extraction_confidence": 0.96
   },
   "timings": {
-    "vision_ms": 1200,
+    "preprocess_ms": 18,
+    "vision_ms": 1210,
+    "vision_extraction_failed": false,
+    "prepared_image_bytes": 128432,
+    "prepared_image_width": 1200,
+    "prepared_image_height": 900,
+    "model": "gpt-5.4-mini",
+    "vision_detail": "high",
+    "total_vision_pipeline_ms": 1232,
     "compare_ms": 12,
-    "request_total_ms": 1421
+    "image_read_ms": 2,
+    "request_total_ms": 1380,
+    "failure_count": 0,
+    "overall_verdict": "APPROVED"
+  }
+}
+```
+
+Validation error response:
+
+```json
+{
+  "message": "Please provide an image and all required label fields.",
+  "errors": {
+    "image": "Image file is required.",
+    "brand_name": "This field is required."
   }
 }
 ```
@@ -289,32 +329,157 @@ items_json
 
 `items_json` is a JSON array. Each item corresponds to the image at the same index.
 
-Response shape:
+Example request:
+
+Use real label photos for each `images` part; replace the sample paths with paths to local image
+files on your machine.
+
+```bash
+curl -X POST http://127.0.0.1:8000/verify/batch \
+  -F "images=@/path/to/first-label-photo.jpg" \
+  -F "images=@/path/to/second-label-photo.jpg" \
+  -F 'items_json=[
+    {
+      "brand_name": "Example Cellars Reserve",
+      "class_type": "Red Wine",
+      "producer": "Example Cellars LLC",
+      "country_of_origin": "United States",
+      "abv": "13.5%",
+      "net_contents": "750 mL",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    },
+    {
+      "brand_name": "Example Orchard Cider",
+      "class_type": "Hard Cider",
+      "producer": "Example Orchard LLC",
+      "country_of_origin": "United States",
+      "abv": "6.2%",
+      "net_contents": "12 fl oz",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    }
+  ]'
+```
+
+Successful response:
 
 ```json
 {
   "summary": {
-    "passed": 1,
+    "passed": 2,
     "needs_review": 0,
-    "total": 1
+    "total": 2
   },
   "items": [
     {
       "index": 0,
-      "filename": "label.jpg",
+      "filename": "first-label-photo.jpg",
       "status": "APPROVED",
       "verification": {
         "overall_verdict": "APPROVED",
         "latency_ms": 12,
-        "results": []
+        "results": [
+          {
+            "field": "brand_name",
+            "status": "PASS",
+            "expected": "Example Cellars Reserve",
+            "found": "Example Cellars Reserve",
+            "match_type": "fuzzy_token_sort_ratio",
+            "score": 100.0,
+            "normalized_application_value": "example cellars reserve",
+            "normalized_extracted_value": "example cellars reserve",
+            "message": "Fuzzy match passed."
+          }
+        ]
       },
-      "extracted_label": null,
+      "extracted_label": {
+        "brand_name": "Example Cellars Reserve",
+        "class_type": "Red Wine",
+        "producer": "Example Cellars LLC",
+        "country_of_origin": "United States",
+        "abv": "13.5% Alc. by Vol.",
+        "net_contents": "750 mL",
+        "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+        "raw_text": "Example Cellars Reserve\nRed Wine\n13.5% Alc. by Vol.\n750 mL\nGOVERNMENT WARNING: ...",
+        "extraction_confidence": 0.96
+      },
       "vision_extraction_failed": false,
-      "latency_ms": 1421,
-      "timings": {},
+      "latency_ms": 1380,
+      "timings": {
+        "preprocess_ms": 18,
+        "vision_ms": 1210,
+        "vision_extraction_failed": false,
+        "prepared_image_bytes": 128432,
+        "prepared_image_width": 1200,
+        "prepared_image_height": 900,
+        "model": "gpt-5.4-mini",
+        "vision_detail": "high",
+        "total_vision_pipeline_ms": 1232,
+        "compare_ms": 12,
+        "image_read_ms": 2
+      },
+      "errors": {}
+    },
+    {
+      "index": 1,
+      "filename": "second-label-photo.jpg",
+      "status": "APPROVED",
+      "verification": {
+        "overall_verdict": "APPROVED",
+        "latency_ms": 10,
+        "results": [
+          {
+            "field": "brand_name",
+            "status": "PASS",
+            "expected": "Example Orchard Cider",
+            "found": "Example Orchard Cider",
+            "match_type": "fuzzy_token_sort_ratio",
+            "score": 100.0,
+            "normalized_application_value": "example orchard cider",
+            "normalized_extracted_value": "example orchard cider",
+            "message": "Fuzzy match passed."
+          }
+        ]
+      },
+      "extracted_label": {
+        "brand_name": "Example Orchard Cider",
+        "class_type": "Hard Cider",
+        "producer": "Example Orchard LLC",
+        "country_of_origin": "United States",
+        "abv": "6.2% Alc. by Vol.",
+        "net_contents": "12 FL OZ",
+        "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+        "raw_text": "Example Orchard Cider\nHard Cider\n6.2% Alc. by Vol.\n12 FL OZ\nGOVERNMENT WARNING: ...",
+        "extraction_confidence": 0.94
+      },
+      "vision_extraction_failed": false,
+      "latency_ms": 1290,
+      "timings": {
+        "preprocess_ms": 16,
+        "vision_ms": 1130,
+        "vision_extraction_failed": false,
+        "prepared_image_bytes": 117904,
+        "prepared_image_width": 1100,
+        "prepared_image_height": 850,
+        "model": "gpt-5.4-mini",
+        "vision_detail": "high",
+        "total_vision_pipeline_ms": 1149,
+        "compare_ms": 10,
+        "image_read_ms": 2
+      },
       "errors": {}
     }
   ]
+}
+```
+
+Validation error response:
+
+```json
+{
+  "message": "Each label needs one photo and one set of application data.",
+  "errors": {
+    "items_json": "Image count and application data count must match."
+  }
 }
 ```
 
