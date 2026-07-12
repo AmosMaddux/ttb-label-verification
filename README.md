@@ -6,15 +6,21 @@ and deterministic comparison rules.
 
 The app is intentionally stateless. It has no database and does not submit anything to TTB systems.
 
+> **TODO: Latency target miss**
+>
+> The current live p95 single-label latency is 9853 ms, which exceeds the under-5-second target.
+> Before treating this proof of concept as production-ready, optimize the slow path and re-measure
+> p50/p95 with `scripts/readiness_check.py --verify --verify-runs 10` or more.
+
 ## Live Demo
 
 - App: https://ttb-label-verification-production-00ed.up.railway.app/
 - Health check: https://ttb-label-verification-production-00ed.up.railway.app/health
 - Last live verification: June 22, 2026
 - Single-label target: under 5 seconds
-- Measured single-label p50 latency: pending live re-measurement against 5-second target
-- Measured single-label p95 latency: pending live re-measurement against 5-second target
-- Measurement method: pending; run `python scripts/readiness_check.py --base-url <deployed-or-local-url> --verify --verify-runs <N>` with a real label photo and application fields.
+- Measured single-label p50 latency: 4356 ms against 5-second target
+- Measured single-label p95 latency: 9853 ms against 5-second target
+- Measurement method: `python scripts/readiness_check.py --base-url "$READINESS_BASE_URL" --verify --verify-runs 10` against the deployed Railway app using `tests/test_images/ttb_c.jpg` and matching application fields.
 - Batch support: up to 5 labels per request
 
 ## What It Does
