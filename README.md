@@ -6,13 +6,21 @@ and deterministic comparison rules.
 
 The app is intentionally stateless. It has no database and does not submit anything to TTB systems.
 
+> **TODO: Latency target miss**
+>
+> The current live p95 single-label latency is 9853 ms, which exceeds the under-5-second target.
+> Before treating this proof of concept as production-ready, optimize the slow path and re-measure
+> p50/p95 with `scripts/readiness_check.py --verify --verify-runs 10` or more.
+
 ## Live Demo
 
-- App: https://ttb-label-verification-production-b67a.up.railway.app/
-- Health check: https://ttb-label-verification-production-b67a.up.railway.app/health
+- App: https://ttb-label-verification-production-00ed.up.railway.app/
+- Health check: https://ttb-label-verification-production-00ed.up.railway.app/health
 - Last live verification: June 22, 2026
 - Single-label target: under 5 seconds
-- Observed live single-label range during final audit: 1421 ms to 2316 ms
+- Measured single-label p50 latency: 4356 ms against 5-second target
+- Measured single-label p95 latency: 9853 ms against 5-second target
+- Measurement method: `python scripts/readiness_check.py --base-url "$READINESS_BASE_URL" --verify --verify-runs 10` against the deployed Railway app using `tests/test_images/ttb_c.jpg` and matching application fields.
 - Batch support: up to 5 labels per request
 
 ## What It Does
@@ -40,15 +48,16 @@ The app verifies these seven fields:
 
 Most fields are forgiving because OCR and label formatting vary. The government warning is strict
 for wording, punctuation, and capitalization, while tolerating whitespace-only OCR differences.
+Fuzzy text matches pass at a score of 90 or higher.
 
 | Field | Match type |
 | --- | --- |
-| Brand name | Fuzzy token-sort match |
-| Product type | Fuzzy token-sort match |
-| Producer or company | Fuzzy token-sort match after role/location cleanup |
+| Brand name | Fuzzy token-sort match, threshold 90 |
+| Product type | Fuzzy token-sort match, threshold 90 |
+| Producer or company | Fuzzy match after role/location cleanup, threshold 90 |
 | Country | Exact match after country, state, province, and wine-region normalization |
-| Alcohol percentage | Numeric ABV normalization with tolerance |
-| Bottle size | Unit normalization to milliliters with tolerance |
+| Alcohol percentage | Numeric ABV normalization, ±0.1 percentage points |
+| Bottle size | Unit normalization to milliliters, ±1 mL |
 | Government warning | Case-sensitive exact match after whitespace collapse |
 
 Whitespace-only OCR differences such as line breaks, tabs, repeated spaces, or leading/trailing
@@ -58,8 +67,9 @@ wording must still match.
 Country matching normalizes common wine regions and subdivisions to their countries, such as
 `California` to `United States`, `Mendoza` to `Argentina`, and `Bordeaux` to `France`. Producer
 matching ignores common role phrases and trailing locations, such as `VINTED & BOTTLED BY ...,
-MODESTO, CALIFORNIA`, while still rejecting unrelated company names. ABV matching prefers numbers
-attached to alcohol wording and does not loosen tolerance to hide bad OCR.
+MODESTO, CALIFORNIA`, while still rejecting unrelated company names. ABV matching tolerates only
+±0.1 percentage points and prefers numbers attached to alcohol wording. Bottle-size matching
+tolerates only ±1 mL after converting both values to milliliters.
 
 Verdict rule:
 
@@ -85,6 +95,27 @@ The system separates AI extraction from deterministic verification:
 Batch requests process labels concurrently with per-item error isolation. One bad label does not
 fail the whole batch.
 
+## AI Workflow
+
+This proof of concept was built with a plan, review, execute cadence using Codex, followed by
+pull-request-style review loops. For each development step, the human owner described the goal,
+constraints, and acceptance criteria in detail, had Codex propose an implementation plan, reviewed
+that plan, then asked Codex to implement the approved scope with tests.
+
+The codebase is roughly 99% AI-generated, but with heavy human direction and review. The human
+work centered on clarifying requirements, shaping prompts, reviewing plans, checking code changes,
+and deciding whether the generated implementation matched the product goal: fast, simple label
+verification that a non-technical user can operate without instructions.
+
+A concrete human override was rejecting backward-compatible use of old field names after the API
+contract changed. Codex initially adjusted readiness behavior around legacy field names, but the
+human review corrected that direction so the final contract consistently uses the current field
+names, such as `class_type`, rather than preserving stale names. The same review direction applied
+to tests: new tests were not allowed to keep asserting old field names. When deployed readiness
+checks failed because the running environment still expected stale variables, the fix was to
+redeploy with the current environment/configuration contract rather than reintroduce legacy
+request fields.
+
 ## Tools And Libraries
 
 - Python 3.12
@@ -107,7 +138,26 @@ Default vision model:
 gpt-5.4-mini
 ```
 
-The model can be changed with the `VISION_MODEL` environment variable.
+This exact model name was verified against the current OpenAI model list on July 12, 2026. The app
+also performs a startup fail-fast model check, and `scripts/readiness_check.py --verify-model` can
+run the same validation before deployment.
+
+The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
+configured model name in sync across these five locations: `app/vision/service.py:24`
+(`DEFAULT_VISION_MODEL`), `README.md:138` (this model block), `README.md:174` (local `.env`
+example), `README.md:537` (Railway environment variables), and `.env.example:3`.
+
+## Environment Variables
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `APP_ENV` | No | unset | Identifies the runtime environment. `test` skips the live startup model check. |
+| `OPENAI_API_KEY` | Yes for real extraction | unset | OpenAI API key used by the vision client and live model validation. |
+| `SKIP_MODEL_CHECK` | No | unset / false | Skips the live `VISION_MODEL` startup check when set to `1`, `true`, `yes`, or `on`. |
+| `VISION_MODEL` | No | `gpt-5.4-mini` | OpenAI model used for label extraction and startup validation. |
+| `VISION_TIMEOUT_S` | No | `4.5` | Timeout in seconds for OpenAI SDK clients. |
+| `MAX_LONG_EDGE` | No | `1400` | Maximum long edge, in pixels, for preprocessed label images. |
+| `JPEG_QUALITY` | No | `76` | JPEG quality used when re-encoding preprocessed label images. |
 
 ## Local Setup
 
@@ -185,9 +235,10 @@ Run health and page checks against a local or deployed app:
 python scripts/readiness_check.py --base-url http://127.0.0.1:8000
 ```
 
-To run an optional live single-label verification, provide an ignored local image and the seven
-application fields through environment variables, then add `--verify`. This may use the deployed
-vision model and incur API cost.
+To run optional live single-label verification checks, provide an ignored local image and the seven
+application fields through environment variables, then add `--verify`. Use `--verify-runs N` to run
+N sequential `/verify` requests and report API latency p50/p95 from the response `latency_ms`
+values. This may use the deployed vision model and incur API cost.
 
 ## API Endpoints
 
@@ -219,7 +270,24 @@ net_contents
 government_warning
 ```
 
-Response shape:
+Example request:
+
+Use a real label photo for `image`; replace the sample path with the path to a local image file on
+your machine.
+
+```bash
+curl -X POST http://127.0.0.1:8000/verify \
+  -F "image=@/path/to/your-label-photo.jpg" \
+  -F "brand_name=Example Cellars Reserve" \
+  -F "class_type=Red Wine" \
+  -F "producer=Example Cellars LLC" \
+  -F "country_of_origin=United States" \
+  -F "abv=13.5%" \
+  -F "net_contents=750 mL" \
+  -F "government_warning=GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+```
+
+Successful response:
 
 ```json
 {
@@ -230,33 +298,56 @@ Response shape:
       {
         "field": "brand_name",
         "status": "PASS",
-        "expected": "Acme Reserve",
-        "found": "Acme Reserve",
+        "expected": "Example Cellars Reserve",
+        "found": "Example Cellars Reserve",
         "match_type": "fuzzy_token_sort_ratio",
         "score": 100.0,
-        "normalized_application_value": "acme reserve",
-        "normalized_extracted_value": "acme reserve",
+        "normalized_application_value": "example cellars reserve",
+        "normalized_extracted_value": "example cellars reserve",
         "message": "Fuzzy match passed."
       }
     ]
   },
-  "latency_ms": 1421,
+  "latency_ms": 1380,
   "vision_extraction_failed": false,
   "extracted_label": {
-    "brand_name": "Acme Reserve",
+    "brand_name": "Example Cellars Reserve",
     "class_type": "Red Wine",
-    "producer": "Acme Winery LLC",
-    "country_of_origin": "USA",
+    "producer": "Example Cellars LLC",
+    "country_of_origin": "United States",
     "abv": "13.5% Alc. by Vol.",
     "net_contents": "750 mL",
-    "government_warning": "GOVERNMENT WARNING: exact text",
-    "raw_text": "Complete transcribed label text",
-    "extraction_confidence": 0.94
+    "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+    "raw_text": "Example Cellars Reserve\nRed Wine\n13.5% Alc. by Vol.\n750 mL\nGOVERNMENT WARNING: ...",
+    "extraction_confidence": 0.96
   },
   "timings": {
-    "vision_ms": 1200,
+    "preprocess_ms": 18,
+    "vision_ms": 1210,
+    "vision_extraction_failed": false,
+    "prepared_image_bytes": 128432,
+    "prepared_image_width": 1200,
+    "prepared_image_height": 900,
+    "model": "gpt-5.4-mini",
+    "vision_detail": "high",
+    "total_vision_pipeline_ms": 1232,
     "compare_ms": 12,
-    "request_total_ms": 1421
+    "image_read_ms": 2,
+    "request_total_ms": 1380,
+    "failure_count": 0,
+    "overall_verdict": "APPROVED"
+  }
+}
+```
+
+Validation error response:
+
+```json
+{
+  "message": "Please provide an image and all required label fields.",
+  "errors": {
+    "image": "Image file is required.",
+    "brand_name": "This field is required."
   }
 }
 ```
@@ -277,32 +368,157 @@ items_json
 
 `items_json` is a JSON array. Each item corresponds to the image at the same index.
 
-Response shape:
+Example request:
+
+Use real label photos for each `images` part; replace the sample paths with paths to local image
+files on your machine.
+
+```bash
+curl -X POST http://127.0.0.1:8000/verify/batch \
+  -F "images=@/path/to/first-label-photo.jpg" \
+  -F "images=@/path/to/second-label-photo.jpg" \
+  -F 'items_json=[
+    {
+      "brand_name": "Example Cellars Reserve",
+      "class_type": "Red Wine",
+      "producer": "Example Cellars LLC",
+      "country_of_origin": "United States",
+      "abv": "13.5%",
+      "net_contents": "750 mL",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    },
+    {
+      "brand_name": "Example Orchard Cider",
+      "class_type": "Hard Cider",
+      "producer": "Example Orchard LLC",
+      "country_of_origin": "United States",
+      "abv": "6.2%",
+      "net_contents": "12 fl oz",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    }
+  ]'
+```
+
+Successful response:
 
 ```json
 {
   "summary": {
-    "passed": 1,
+    "passed": 2,
     "needs_review": 0,
-    "total": 1
+    "total": 2
   },
   "items": [
     {
       "index": 0,
-      "filename": "label.jpg",
+      "filename": "first-label-photo.jpg",
       "status": "APPROVED",
       "verification": {
         "overall_verdict": "APPROVED",
         "latency_ms": 12,
-        "results": []
+        "results": [
+          {
+            "field": "brand_name",
+            "status": "PASS",
+            "expected": "Example Cellars Reserve",
+            "found": "Example Cellars Reserve",
+            "match_type": "fuzzy_token_sort_ratio",
+            "score": 100.0,
+            "normalized_application_value": "example cellars reserve",
+            "normalized_extracted_value": "example cellars reserve",
+            "message": "Fuzzy match passed."
+          }
+        ]
       },
-      "extracted_label": null,
+      "extracted_label": {
+        "brand_name": "Example Cellars Reserve",
+        "class_type": "Red Wine",
+        "producer": "Example Cellars LLC",
+        "country_of_origin": "United States",
+        "abv": "13.5% Alc. by Vol.",
+        "net_contents": "750 mL",
+        "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+        "raw_text": "Example Cellars Reserve\nRed Wine\n13.5% Alc. by Vol.\n750 mL\nGOVERNMENT WARNING: ...",
+        "extraction_confidence": 0.96
+      },
       "vision_extraction_failed": false,
-      "latency_ms": 1421,
-      "timings": {},
+      "latency_ms": 1380,
+      "timings": {
+        "preprocess_ms": 18,
+        "vision_ms": 1210,
+        "vision_extraction_failed": false,
+        "prepared_image_bytes": 128432,
+        "prepared_image_width": 1200,
+        "prepared_image_height": 900,
+        "model": "gpt-5.4-mini",
+        "vision_detail": "high",
+        "total_vision_pipeline_ms": 1232,
+        "compare_ms": 12,
+        "image_read_ms": 2
+      },
+      "errors": {}
+    },
+    {
+      "index": 1,
+      "filename": "second-label-photo.jpg",
+      "status": "APPROVED",
+      "verification": {
+        "overall_verdict": "APPROVED",
+        "latency_ms": 10,
+        "results": [
+          {
+            "field": "brand_name",
+            "status": "PASS",
+            "expected": "Example Orchard Cider",
+            "found": "Example Orchard Cider",
+            "match_type": "fuzzy_token_sort_ratio",
+            "score": 100.0,
+            "normalized_application_value": "example orchard cider",
+            "normalized_extracted_value": "example orchard cider",
+            "message": "Fuzzy match passed."
+          }
+        ]
+      },
+      "extracted_label": {
+        "brand_name": "Example Orchard Cider",
+        "class_type": "Hard Cider",
+        "producer": "Example Orchard LLC",
+        "country_of_origin": "United States",
+        "abv": "6.2% Alc. by Vol.",
+        "net_contents": "12 FL OZ",
+        "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+        "raw_text": "Example Orchard Cider\nHard Cider\n6.2% Alc. by Vol.\n12 FL OZ\nGOVERNMENT WARNING: ...",
+        "extraction_confidence": 0.94
+      },
+      "vision_extraction_failed": false,
+      "latency_ms": 1290,
+      "timings": {
+        "preprocess_ms": 16,
+        "vision_ms": 1130,
+        "vision_extraction_failed": false,
+        "prepared_image_bytes": 117904,
+        "prepared_image_width": 1100,
+        "prepared_image_height": 850,
+        "model": "gpt-5.4-mini",
+        "vision_detail": "high",
+        "total_vision_pipeline_ms": 1149,
+        "compare_ms": 10,
+        "image_read_ms": 2
+      },
       "errors": {}
     }
   ]
+}
+```
+
+Validation error response:
+
+```json
+{
+  "message": "Each label needs one photo and one set of application data.",
+  "errors": {
+    "items_json": "Image count and application data count must match."
+  }
 }
 ```
 
@@ -375,8 +591,8 @@ Pre-submission audit commands:
 git ls-files | rg '(^|/)\.env($|\.|-)'
 git check-ignore .env
 git grep -nE 'sk-[A-Za-z0-9_-]+|sk-proj-[A-Za-z0-9_-]+|OPENAI_API_KEY\s*=.+|RAILWAY_TOKEN\s*=.+|api[_-]?key\s*=|secret\s*=|token\s*='
-rg --hidden --glob '!.git' --glob '!tests/test_images/**' -n 'sk-[A-Za-z0-9_-]+|sk-proj-[A-Za-z0-9_-]+|OPENAI_API_KEY\s*=.+|RAILWAY_TOKEN\s*=.+|api[_-]?key\s*=|secret\s*=|token\s*='
-git log --all -G 'sk-[A-Za-z0-9_-]+|sk-proj-[A-Za-z0-9_-]+|OPENAI_API_KEY\s*=.+|RAILWAY_TOKEN\s*=.+|api[_-]?key\s*=|secret\s*=|token\s*=' --oneline -- . ':!tests/test_images'
+rg --hidden --glob '!.git' -n 'sk-[A-Za-z0-9_-]+|sk-proj-[A-Za-z0-9_-]+|OPENAI_API_KEY\s*=.+|RAILWAY_TOKEN\s*=.+|api[_-]?key\s*=|secret\s*=|token\s*='
+git log --all -G 'sk-[A-Za-z0-9_-]+|sk-proj-[A-Za-z0-9_-]+|OPENAI_API_KEY\s*=.+|RAILWAY_TOKEN\s*=.+|api[_-]?key\s*=|secret\s*=|token\s*=' --oneline
 ```
 
 For a stronger public-release audit, run a dedicated scanner such as `gitleaks` or `trufflehog`.
