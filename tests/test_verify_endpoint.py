@@ -218,8 +218,8 @@ async def test_failure_includes_expected_vs_found_and_overall_verdict() -> None:
     assert response_status(response) == 200
     assert body["verification"]["verdict"] == "NEEDS_REVIEW"
     assert brand_result["status"] == "FAIL"
-    assert brand_result["application_value"] == "Acme Reserve"
-    assert brand_result["extracted_value"] == "Wrong Brand"
+    assert brand_result["expected"] == "Acme Reserve"
+    assert brand_result["found"] == "Wrong Brand"
 
 
 @pytest.mark.anyio
@@ -236,7 +236,7 @@ async def test_warning_extracted_text_is_surfaced_on_failure() -> None:
     assert response_status(response) == 200
     assert body["verification"]["verdict"] == "NEEDS_REVIEW"
     assert body["extracted_label"]["government_warning"] == title_case_warning
-    assert warning_result["extracted_value"] == title_case_warning
+    assert warning_result["found"] == title_case_warning
 
 
 @pytest.mark.anyio
@@ -256,7 +256,7 @@ async def test_warning_whitespace_only_difference_passes_and_preserves_original(
     assert response_status(response) == 200
     assert body["verification"]["verdict"] == "PASS"
     assert warning_result["status"] == "PASS"
-    assert warning_result["extracted_value"] == warning_with_newline
+    assert warning_result["found"] == warning_with_newline
     assert warning_result["normalized_extracted_value"] == CANONICAL_WARNING
 
 

@@ -71,9 +71,9 @@ def test_models_accept_and_serialize_expected_shapes() -> None:
     field = FieldResult(
         field="brand_name",
         status="PASS",
-        application_value="Acme",
-        extracted_value="acme",
-        strategy="fuzzy",
+        expected="Acme",
+        found="acme",
+        match_type="fuzzy",
         score=100.0,
         normalized_application_value="acme",
         normalized_extracted_value="acme",
@@ -447,7 +447,7 @@ def test_government_warning_extracted_value_is_original_not_normalized() -> None
     result = compare_government_warning(CANONICAL_WARNING, extra_space)
 
     assert result.status == "PASS"
-    assert result.extracted_value == extra_space
+    assert result.found == extra_space
     assert result.normalized_extracted_value == CANONICAL_WARNING
 
 
@@ -480,7 +480,7 @@ def test_misread_government_warning_failure_keeps_extracted_text() -> None:
     result = compare_government_warning(CANONICAL_WARNING, misread)
 
     assert result.status == "FAIL"
-    assert result.extracted_value == misread
+    assert result.found == misread
 
 
 def test_all_fields_passing_gives_pass_verdict() -> None:
@@ -526,7 +526,7 @@ def test_failed_government_warning_result_includes_exact_extracted_warning_text(
     warning_result = next(field for field in result.fields if field.field == "government_warning")
 
     assert warning_result.status == "FAIL"
-    assert warning_result.extracted_value == extracted_warning
+    assert warning_result.found == extracted_warning
 
 
 def test_barefoot_cleaned_extraction_passes_all_fields() -> None:

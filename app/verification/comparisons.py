@@ -341,9 +341,9 @@ def _missing_result(field: str, application: str, strategy: str) -> FieldResult:
     return FieldResult(
         field=field,
         status="FAIL",
-        application_value=application,
-        extracted_value=None,
-        strategy=strategy,
+        expected=application,
+        found=None,
+        match_type=strategy,
         message="Extracted value is missing.",
     )
 
@@ -370,9 +370,9 @@ def _compare_fuzzy(field: str, application: str, extracted: str | None) -> Field
     return FieldResult(
         field=field,
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=strategy,
         score=score,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
@@ -429,9 +429,9 @@ def compare_producer(application: str, extracted: str | None) -> FieldResult:
     return FieldResult(
         field="producer",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=strategy,
         score=score,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
@@ -461,9 +461,9 @@ def compare_country_of_origin(application: str, extracted: str | None) -> FieldR
     return FieldResult(
         field="country_of_origin",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=strategy,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
         message="Country matched." if status == "PASS" else "Country did not match.",
@@ -540,9 +540,9 @@ def compare_abv(application: str, extracted: str | None) -> FieldResult:
     return FieldResult(
         field="abv",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=strategy,
         normalized_application_value=None if application_abv is None else str(application_abv),
         normalized_extracted_value=None if extracted_abv is None else str(extracted_abv),
         message="ABV matched within tolerance." if status == "PASS" else "ABV did not match.",
@@ -598,9 +598,9 @@ def compare_net_contents(application: str, extracted: str | None) -> FieldResult
     return FieldResult(
         field="net_contents",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=strategy,
         normalized_application_value=None if application_ml is None else str(application_ml),
         normalized_extracted_value=None if extracted_ml is None else str(extracted_ml),
         message=(
@@ -632,9 +632,9 @@ def compare_government_warning(application: str, extracted: str | None) -> Field
     return FieldResult(
         field="government_warning",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=strategy,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
         message=(

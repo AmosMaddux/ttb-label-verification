@@ -54,8 +54,8 @@ class FieldResult(BaseModel):
     """Comparison result for one label field.
 
     Inputs:
-        Field name, pass/fail status, original expected/extracted values,
-        comparison strategy, optional score/normalized values, and a user-facing
+        Field name, pass/fail status, original expected/found values,
+        match type, optional score/normalized values, and a user-facing
         message.
 
     Outputs:
@@ -64,9 +64,9 @@ class FieldResult(BaseModel):
 
     field: str
     status: Literal["PASS", "FAIL"]
-    application_value: str
-    extracted_value: str | None
-    strategy: str
+    expected: str
+    found: str | None
+    match_type: str
     score: float | None = None
     normalized_application_value: str | None = None
     normalized_extracted_value: str | None = None

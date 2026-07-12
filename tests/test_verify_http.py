@@ -185,7 +185,7 @@ async def test_verify_real_multipart_warning_case_mismatch_returns_needs_review(
         field for field in body["verification"]["fields"] if field["field"] == "government_warning"
     )
     assert warning["status"] == "FAIL"
-    assert warning["extracted_value"] == title_case_warning
+    assert warning["found"] == title_case_warning
 
 
 @pytest.mark.anyio
@@ -210,7 +210,7 @@ async def test_verify_real_multipart_warning_whitespace_only_difference_passes()
         field for field in body["verification"]["fields"] if field["field"] == "government_warning"
     )
     assert warning["status"] == "PASS"
-    assert warning["extracted_value"] == warning_with_extra_space
+    assert warning["found"] == warning_with_extra_space
 
 
 @pytest.mark.anyio

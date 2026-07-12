@@ -123,7 +123,7 @@ function renderFields(card, fields) {
     const approved = field.status === "PASS";
     item.className = `inline-result ${approved ? "approved" : "review"}`;
     item.querySelector(".result-status").textContent = approved ? "Looks good" : "Needs review";
-    item.querySelector(".result-value").textContent = valueOrDash(field.extracted_value);
+    item.querySelector(".result-value").textContent = valueOrDash(field.found);
     item.querySelector(".result-message").textContent = field.message || "";
   });
 }
@@ -227,8 +227,8 @@ function renderBatchResult(body) {
           </dl>
           <p class="field-message">${field.message || ""}</p>
         `;
-        row.querySelectorAll("dd")[0].textContent = valueOrDash(field.application_value);
-        row.querySelectorAll("dd")[1].textContent = valueOrDash(field.extracted_value);
+        row.querySelectorAll("dd")[0].textContent = valueOrDash(field.expected);
+        row.querySelectorAll("dd")[1].textContent = valueOrDash(field.found);
         detail.append(row);
       });
     }
