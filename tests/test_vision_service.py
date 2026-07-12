@@ -237,6 +237,18 @@ async def test_non_label_image_returns_all_nulls() -> None:
 
 
 @pytest.mark.anyio
+async def test_preprocessing_failure_sets_vision_extraction_failed_metric() -> None:
+    fake = FakeVisionClient(VisionClientResult(structured_data=populated_payload()))
+    service = VisionService(client=fake)
+
+    result = await service.extract_label_with_metrics(b"not an image")
+
+    assert fake.calls == 0
+    assert result.label == null_extracted_label()
+    assert result.timings["vision_extraction_failed"] is True
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     "result",
     [
@@ -272,6 +284,18 @@ async def test_api_timeout_or_client_error_returns_all_nulls(error: Exception) -
     extracted = await service.extract_label(image_bytes())
 
     assert extracted == null_extracted_label()
+
+
+@pytest.mark.anyio
+async def test_provider_exception_sets_vision_extraction_failed_metric() -> None:
+    fake = FakeVisionClient(RuntimeError("sdk error"))
+    service = VisionService(client=fake)
+
+    result = await service.extract_label_with_metrics(image_bytes())
+
+    assert fake.calls == 1
+    assert result.label == null_extracted_label()
+    assert result.timings["vision_extraction_failed"] is True
 
 
 @pytest.mark.anyio

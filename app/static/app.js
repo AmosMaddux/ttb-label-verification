@@ -34,6 +34,7 @@ const fieldLabels = {
 };
 
 const fieldNames = Object.keys(fieldLabels);
+const visionFailureMessage = "We couldn't read this photo. Try another angle or better lighting.";
 
 /**
  * Show or hide the top-level message banner.
@@ -118,10 +119,23 @@ function clearInlineResults(card = null) {
  * Render field-level verification results inside one label card.
  * @param {HTMLElement} card Label-card element to update.
  * @param {Array<object>} fields API field results for that label.
+ * @param {boolean} visionExtractionFailed True when the vision service could not read the photo.
  * @returns {void}
  */
-function renderFields(card, fields) {
+function renderFields(card, fields, visionExtractionFailed = false) {
   clearInlineResults(card);
+
+  if (visionExtractionFailed) {
+    const item = card.querySelector("[data-result-for]");
+    if (!item) {
+      return;
+    }
+    item.className = "inline-result review";
+    item.querySelector(".result-status").textContent = "Try another photo";
+    item.querySelector(".result-value").textContent = visionFailureMessage;
+    item.querySelector(".result-message").textContent = "";
+    return;
+  }
 
   fields.forEach((field) => {
     const item = card.querySelector(`[data-result-for="${field.field}"]`);
@@ -171,7 +185,7 @@ function renderSingleResult(item) {
 
   const firstCard = labelCards()[0];
   if (firstCard && item.verification) {
-    renderFields(firstCard, item.verification.results);
+    renderFields(firstCard, item.verification.results, item.vision_extraction_failed);
   }
   renderExtracted(item.extracted_label || {});
 }
@@ -211,7 +225,19 @@ function renderBatchResult(body) {
     `;
 
     const detail = details.querySelector(".batch-detail");
-    if (item.verification) {
+    if (item.vision_extraction_failed) {
+      const row = document.createElement("article");
+      row.className = "field-result fail";
+      row.innerHTML = `
+        <div class="field-heading">
+          <h3>Photo unreadable</h3>
+          <span>Try another photo</span>
+        </div>
+        <p class="field-message"></p>
+      `;
+      row.querySelector(".field-message").textContent = visionFailureMessage;
+      detail.append(row);
+    } else if (item.verification) {
       const failed = item.verification.results.filter((field) => field.status === "FAIL");
       const passed = item.verification.results.filter((field) => field.status === "PASS");
       [...failed, ...passed].forEach((field) => {
@@ -268,7 +294,7 @@ function renderResult(body) {
   labelCards().forEach((card, index) => {
     const item = body.items[index];
     if (item?.verification) {
-      renderFields(card, item.verification.results);
+      renderFields(card, item.verification.results, item.vision_extraction_failed);
     }
   });
   renderBatchResult(body);

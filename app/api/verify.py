@@ -230,6 +230,7 @@ async def _verify_image_data(
             content_type=content_type,
         )
         timings = {"vision_ms": _latency_ms(vision_start)}
+    vision_extraction_failed = bool(timings.get("vision_extraction_failed", False))
 
     compare_start = time.perf_counter()
     verification = verify_label(application, extracted)
@@ -240,6 +241,7 @@ async def _verify_image_data(
     return VerifyResponse(
         verification=verification,
         latency_ms=_latency_ms(start),
+        vision_extraction_failed=vision_extraction_failed,
         extracted_label=extracted,
         timings=timings,
     )
@@ -333,6 +335,7 @@ async def _verify_batch_item(
         status=result.verification.overall_verdict,
         verification=result.verification,
         extracted_label=result.extracted_label,
+        vision_extraction_failed=result.vision_extraction_failed,
         latency_ms=_latency_ms(start),
         timings={**result.timings, "image_read_ms": image_read_ms},
         errors={},

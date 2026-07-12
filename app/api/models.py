@@ -36,6 +36,7 @@ class VerifyResponse(BaseModel):
 
     verification: VerificationResult
     latency_ms: int
+    vision_extraction_failed: bool = False
     extracted_label: ExtractedLabel
     timings: dict[str, int | str | bool | None] = Field(default_factory=dict)
 
@@ -72,6 +73,7 @@ class BatchItemResult(BaseModel):
     status: Literal["APPROVED", "NEEDS_REVIEW"]
     verification: VerificationResult | None = None
     extracted_label: ExtractedLabel | None = None
+    vision_extraction_failed: bool = False
     latency_ms: int
     timings: dict[str, int | str | bool | None] = Field(default_factory=dict)
     errors: dict[str, str]

@@ -9,8 +9,11 @@ from PIL import Image
 from pydantic import ValidationError
 
 from app.api.models import BatchItemResult, BatchResult, VerifyResponse
-from app.api.verify import verify_batch_endpoint, verify_endpoint
+from app.api.verify import _verify_image_data, verify_batch_endpoint, verify_endpoint
 from app.verification.models import ExtractedLabel
+from app.vision.client import VisionClientResult
+from app.vision.fakes import FakeVisionClient
+from app.vision.service import VisionExtractionResult, VisionService, null_extracted_label
 
 
 CANONICAL_WARNING = (
@@ -79,6 +82,21 @@ class SlowMockVisionService:
         await asyncio.sleep(self.delay)
         self.active -= 1
         return self.extracted
+
+
+class MetricsMockVisionService:
+    def __init__(self, extraction: VisionExtractionResult) -> None:
+        self.extraction = extraction
+        self.calls = 0
+
+    async def extract_label_with_metrics(
+        self,
+        image_bytes: bytes,
+        filename: str | None = None,
+        content_type: str | None = None,
+    ) -> VisionExtractionResult:
+        self.calls += 1
+        return self.extraction
 
 
 def image_bytes(image_format: str = "JPEG") -> bytes:
@@ -201,8 +219,47 @@ async def test_successful_verify_returns_full_verification_result() -> None:
     assert body["timings"]["request_total_ms"] >= 0
     assert body["timings"]["image_read_ms"] >= 0
     assert body["timings"]["compare_ms"] >= 0
+    assert body["vision_extraction_failed"] is False
     assert body["extracted_label"]["government_warning"] == CANONICAL_WARNING
     assert mock.calls == 1
+
+
+@pytest.mark.anyio
+async def test_verify_response_flags_preprocessing_extraction_failure() -> None:
+    service = VisionService(
+        client=FakeVisionClient(
+            VisionClientResult(structured_data=matching_extracted_label().model_dump())
+        )
+    )
+
+    response = await _verify_image_data(
+        vision_service=service,
+        image_bytes=b"not an image",
+        filename="bad.jpg",
+        content_type="image/jpeg",
+        fields=form_data(),
+    )
+    body = response.model_dump(mode="json")
+
+    assert body["vision_extraction_failed"] is True
+    assert body["timings"]["vision_extraction_failed"] is True
+
+
+@pytest.mark.anyio
+async def test_verify_response_flags_provider_extraction_failure() -> None:
+    service = VisionService(client=FakeVisionClient(RuntimeError("provider boom")))
+
+    response = await _verify_image_data(
+        vision_service=service,
+        image_bytes=image_bytes(),
+        filename="label.jpg",
+        content_type="image/jpeg",
+        fields=form_data(),
+    )
+    body = response.model_dump(mode="json")
+
+    assert body["vision_extraction_failed"] is True
+    assert body["timings"]["vision_extraction_failed"] is True
 
 
 @pytest.mark.anyio
@@ -508,6 +565,24 @@ async def test_batch_size_one_returns_summary_and_result() -> None:
     assert body["items"][0]["verification"]["overall_verdict"] == "APPROVED"
     assert body["items"][0]["timings"]["image_read_ms"] >= 0
     assert body["items"][0]["timings"]["compare_ms"] >= 0
+    assert mock.calls == 1
+
+
+@pytest.mark.anyio
+async def test_batch_item_includes_vision_extraction_failed_flag() -> None:
+    mock = MetricsMockVisionService(
+        VisionExtractionResult(
+            label=null_extracted_label(),
+            timings={"vision_ms": 1, "vision_extraction_failed": True},
+        )
+    )
+
+    response = await call_batch_verify(mock)
+    body = response_body(response)
+
+    assert response_status(response) == 200
+    assert body["items"][0]["vision_extraction_failed"] is True
+    assert body["items"][0]["timings"]["vision_extraction_failed"] is True
     assert mock.calls == 1
 
 
