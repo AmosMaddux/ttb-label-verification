@@ -126,10 +126,17 @@ function renderFields(card, fields, visionExtractionFailed = false) {
   clearInlineResults(card);
 
   if (visionExtractionFailed) {
-    const item = card.querySelector("[data-result-for]");
+    const items = [...card.querySelectorAll("[data-result-for]")];
+    const item = items[0];
     if (!item) {
       return;
     }
+    items.slice(1).forEach((other) => {
+      other.className = "inline-result suppressed";
+      other.querySelector(".result-status").textContent = "Photo unreadable";
+      other.querySelector(".result-value").textContent = "";
+      other.querySelector(".result-message").textContent = "";
+    });
     item.className = "inline-result review";
     item.querySelector(".result-status").textContent = "Try another photo";
     item.querySelector(".result-value").textContent = visionFailureMessage;

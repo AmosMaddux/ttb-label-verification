@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApplicationData(BaseModel):
@@ -47,7 +47,7 @@ class ExtractedLabel(BaseModel):
     net_contents: str | None = None
     government_warning: str | None = None
     raw_text: str | None = None
-    extraction_confidence: float | None = None
+    extraction_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class FieldResult(BaseModel):

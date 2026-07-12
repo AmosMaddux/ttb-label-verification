@@ -145,10 +145,12 @@ def build_extracted_label_schema() -> dict[str, Any]:
         string-or-null, confidence to be number-or-null, and rejecting
         additional properties.
     """
-    properties = {
-        field: {"type": ["number", "null"] if field == "extraction_confidence" else ["string", "null"]}
-        for field in ExtractedLabel.model_fields
-    }
+    properties = {}
+    for field in ExtractedLabel.model_fields:
+        if field == "extraction_confidence":
+            properties[field] = {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+        else:
+            properties[field] = {"type": ["string", "null"]}
     return {
         "type": "object",
         "properties": properties,

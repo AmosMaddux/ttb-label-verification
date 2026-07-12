@@ -445,6 +445,7 @@ async def verify_endpoint(
     return VerifyResponse(
         verification=result.verification,
         latency_ms=latency,
+        vision_extraction_failed=result.vision_extraction_failed,
         extracted_label=result.extracted_label,
         timings={
             **result.timings,

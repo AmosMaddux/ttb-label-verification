@@ -180,6 +180,7 @@ test("unreadable photos show one clear retry message", async ({ page }) => {
   await page.locator("#submit-button").click();
 
   await expect(page.locator(".label-card").first()).toContainText("We couldn't read this photo");
+  await expect(page.locator(".label-card").first().locator(".inline-result.suppressed")).toHaveCount(6);
   await page.locator(".batch-result").nth(1).locator("summary").click();
   await expect(page.locator(".batch-result").nth(1)).toContainText("We couldn't read this photo");
   await expect(page.locator(".batch-result").nth(1)).not.toContainText("Expected");

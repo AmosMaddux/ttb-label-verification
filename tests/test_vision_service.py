@@ -104,6 +104,8 @@ def test_schema_matches_extracted_label_and_disallows_extra_properties() -> None
     assert schema["additionalProperties"] is False
     assert schema["properties"]["raw_text"]["type"] == ["string", "null"]
     assert schema["properties"]["extraction_confidence"]["type"] == ["number", "null"]
+    assert schema["properties"]["extraction_confidence"]["minimum"] == 0
+    assert schema["properties"]["extraction_confidence"]["maximum"] == 1
     assert all(
         property_schema["type"] == ["string", "null"]
         for field, property_schema in schema["properties"].items()
@@ -261,6 +263,18 @@ async def test_preprocessing_failure_sets_vision_extraction_failed_metric() -> N
 )
 async def test_malformed_structured_responses_return_all_nulls(result: VisionClientResult) -> None:
     service = VisionService(client=FakeVisionClient(result))
+
+    extracted = await service.extract_label(image_bytes())
+
+    assert extracted == null_extracted_label()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("confidence", [-0.01, 1.01])
+async def test_out_of_range_extraction_confidence_returns_all_nulls(confidence: float) -> None:
+    payload = populated_payload()
+    payload["extraction_confidence"] = confidence
+    service = VisionService(client=FakeVisionClient(VisionClientResult(structured_data=payload)))
 
     extracted = await service.extract_label(image_bytes())
 
