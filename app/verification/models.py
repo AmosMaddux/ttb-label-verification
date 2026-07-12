@@ -28,8 +28,9 @@ class ExtractedLabel(BaseModel):
     """Structured fields extracted from the uploaded label image.
 
     Inputs:
-        Seven optional strings returned by the vision model. Each field may be
-        `None` when the text is missing, unreadable, or uncertain.
+        Seven optional label strings, optional raw transcribed text, and an
+        optional confidence score returned by the vision model. Each may be
+        `None` when missing, unreadable, or uncertain.
 
     Outputs:
         A strict model with no extra keys, allowing the verifier to distinguish
@@ -45,6 +46,8 @@ class ExtractedLabel(BaseModel):
     abv: str | None = None
     net_contents: str | None = None
     government_warning: str | None = None
+    raw_text: str | None = None
+    extraction_confidence: float | None = None
 
 
 class FieldResult(BaseModel):

@@ -62,7 +62,7 @@ def non_label_image_bytes() -> bytes:
     return image_to_bytes(image)
 
 
-def populated_payload() -> dict[str, str]:
+def populated_payload() -> dict[str, str | float]:
     return {
         "brand_name": "Acme Reserve",
         "class_type": "Red Wine",
@@ -71,6 +71,8 @@ def populated_payload() -> dict[str, str]:
         "abv": "13.5% Alc. by Vol.",
         "net_contents": "750 mL",
         "government_warning": "GOVERNMENT WARNING: exact text",
+        "raw_text": "Acme Reserve\nRed Wine\n13.5% Alc. by Vol.\n750 mL\nGOVERNMENT WARNING: exact text",
+        "extraction_confidence": 0.94,
     }
 
 
@@ -100,9 +102,12 @@ def test_schema_matches_extracted_label_and_disallows_extra_properties() -> None
     assert set(schema["properties"]) == set(ExtractedLabel.model_fields)
     assert schema["required"] == list(ExtractedLabel.model_fields)
     assert schema["additionalProperties"] is False
+    assert schema["properties"]["raw_text"]["type"] == ["string", "null"]
+    assert schema["properties"]["extraction_confidence"]["type"] == ["number", "null"]
     assert all(
         property_schema["type"] == ["string", "null"]
-        for property_schema in schema["properties"].values()
+        for field, property_schema in schema["properties"].items()
+        if field != "extraction_confidence"
     )
 
 
@@ -164,6 +169,21 @@ def test_prompt_guides_abv_context_and_uncertainty() -> None:
         assert phrase in prompt
 
 
+def test_prompt_guides_raw_text_and_confidence_extraction() -> None:
+    prompt = EXTRACTION_PROMPT.lower()
+
+    for phrase in [
+        "raw_text",
+        "complete transcribed text",
+        "all readable label text",
+        "extraction_confidence",
+        "number from 0 to 1",
+        "meaningful",
+        "confidence estimate",
+    ]:
+        assert phrase in prompt
+
+
 @pytest.mark.anyio
 async def test_service_returns_complete_structured_data_from_fake_client() -> None:
     fake = FakeVisionClient(VisionClientResult(structured_data=populated_payload()))
@@ -176,6 +196,8 @@ async def test_service_returns_complete_structured_data_from_fake_client() -> No
     assert fake.last_detail == "high"
     assert extracted.brand_name == "Acme Reserve"
     assert extracted.government_warning == "GOVERNMENT WARNING: exact text"
+    assert extracted.raw_text == "Acme Reserve\nRed Wine\n13.5% Alc. by Vol.\n750 mL\nGOVERNMENT WARNING: exact text"
+    assert extracted.extraction_confidence == 0.94
 
 
 @pytest.mark.anyio
@@ -183,6 +205,8 @@ async def test_service_returns_partial_null_data() -> None:
     payload = populated_payload()
     payload["producer"] = None
     payload["government_warning"] = None
+    payload["raw_text"] = None
+    payload["extraction_confidence"] = None
     service = VisionService(client=FakeVisionClient(VisionClientResult(structured_data=payload)))
 
     extracted = await service.extract_label(image_bytes())
@@ -190,6 +214,8 @@ async def test_service_returns_partial_null_data() -> None:
     assert extracted.brand_name == "Acme Reserve"
     assert extracted.producer is None
     assert extracted.government_warning is None
+    assert extracted.raw_text is None
+    assert extracted.extraction_confidence is None
 
 
 @pytest.mark.anyio

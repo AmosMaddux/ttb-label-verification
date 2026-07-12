@@ -29,7 +29,7 @@ EXTRACTION_PROMPT = """You are extracting text fields from a photographed alcoho
 
 Return only the structured JSON object required by the provided schema. Do not include explanations, markdown, or extra keys.
 
-Extract these seven fields:
+Extract these fields:
 
 1. brand_name
    The brand name shown on the label.
@@ -69,6 +69,17 @@ Extract these seven fields:
 7. government_warning
    The government warning text exactly as visible on the label. This field is critical because the downstream verifier requires an exact, case-sensitive match.
 
+8. raw_text
+   The complete transcribed text visible on the label, preserving line breaks as much as possible.
+   Include all readable label text, not just the seven verification fields. Return null if the label
+   text is too blurry, blocked, cut off, or uncertain to transcribe with confidence.
+
+9. extraction_confidence
+   A number from 0 to 1 representing your confidence in the overall extraction. Use 1 only when all
+   visible relevant text is clear and confidently extracted. Use lower values for blur, glare,
+   cropping, difficult typography, or uncertainty. Return null if you cannot make a meaningful
+   confidence estimate.
+
 Rules:
 - If a field is not visible, unreadable, blocked by glare, too blurry, cut off, or uncertain, return null for that field.
 - Do not guess or infer values from context.
@@ -85,8 +96,11 @@ Rules:
 - Do not normalize the government_warning.
 - Do not summarize or rewrite the government_warning.
 - If the government_warning is present but you cannot read it character by character, return null for government_warning.
+- For raw_text, transcribe the complete readable label text and return null when the full visible text
+  cannot be transcribed with confidence.
+- For extraction_confidence, return a numeric confidence score between 0 and 1, or null when uncertain.
 - For all other fields, copy the visible text as closely as possible without adding information.
-- If the image is not an alcohol beverage label, return null for all fields.
+- If the image is not an alcohol beverage label, return null for all fields, raw_text, and extraction_confidence.
 - Return partial data when only some fields are readable.
 """
 
@@ -127,11 +141,12 @@ def build_extracted_label_schema() -> dict[str, Any]:
         None. Field names are derived from `ExtractedLabel`.
 
     Outputs:
-        A schema requiring every expected key, allowing each value to be either
-        a string or null, and rejecting additional properties.
+        A schema requiring every expected key, allowing string fields to be
+        string-or-null, confidence to be number-or-null, and rejecting
+        additional properties.
     """
     properties = {
-        field: {"type": ["string", "null"]}
+        field: {"type": ["number", "null"] if field == "extraction_confidence" else ["string", "null"]}
         for field in ExtractedLabel.model_fields
     }
     return {
