@@ -224,6 +224,13 @@ textarea {
   color: #5f3200;
 }
 
+.inline-result.suppressed {
+  border-color: #cbd5df;
+  background: #eef2f6;
+  color: #647386;
+  opacity: 0.58;
+}
+
 .warning-row .inline-result {
   min-height: 150px;
   align-content: start;

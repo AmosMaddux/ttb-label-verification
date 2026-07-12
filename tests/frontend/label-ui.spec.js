@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 
 const fields = {
   brand_name: "Acme Reserve",
-  product_class: "Red Wine",
+  class_type: "Red Wine",
   producer: "Acme Winery LLC",
   country_of_origin: "United States",
   abv: "13.5",
@@ -11,17 +11,17 @@ const fields = {
 };
 
 const passResponse = {
-  summary: { passed: 1, needs_review: 0, total: 1, latency_ms: 1200 },
-  results: [
+  summary: { passed: 1, needs_review: 0, total: 1 },
+  items: [
     {
       index: 0,
       filename: "label.jpg",
-      status: "PASS",
+      status: "APPROVED",
       latency_ms: 1100,
       errors: {},
       extracted_label: {
         brand_name: "Acme Reserve",
-        product_class: "Red Wine",
+        class_type: "Red Wine",
         producer: "Acme Winery LLC",
         country_of_origin: "USA",
         abv: "13.5% Alc. by Vol.",
@@ -29,13 +29,14 @@ const passResponse = {
         government_warning: "GOVERNMENT WARNING: exact text",
       },
       verification: {
-        verdict: "PASS",
-        fields: Object.keys(fields).map((field) => ({
+        overall_verdict: "APPROVED",
+        latency_ms: 100,
+        results: Object.keys(fields).map((field) => ({
           field,
           status: "PASS",
-          application_value: fields[field],
-          extracted_value: field === "country_of_origin" ? "USA" : fields[field],
-          strategy: "test",
+          expected: fields[field],
+          found: field === "country_of_origin" ? "USA" : fields[field],
+          match_type: "test",
           score: 100,
           normalized_application_value: null,
           normalized_extracted_value: null,
@@ -47,23 +48,24 @@ const passResponse = {
 };
 
 const mixedBatchResponse = {
-  summary: { passed: 1, needs_review: 1, total: 2, latency_ms: 1800 },
-  results: [
-    passResponse.results[0],
+  summary: { passed: 1, needs_review: 1, total: 2 },
+  items: [
+    passResponse.items[0],
     {
-      ...passResponse.results[0],
+      ...passResponse.items[0],
       index: 1,
       filename: "label-2.jpg",
       status: "NEEDS_REVIEW",
       verification: {
-        verdict: "NEEDS_REVIEW",
-        fields: [
+        overall_verdict: "NEEDS_REVIEW",
+        latency_ms: 100,
+        results: [
           {
             field: "brand_name",
             status: "FAIL",
-            application_value: "Acme Reserve",
-            extracted_value: "Wrong Brand",
-            strategy: "test",
+            expected: "Acme Reserve",
+            found: "Wrong Brand",
+            match_type: "test",
             score: 20,
             normalized_application_value: null,
             normalized_extracted_value: null,
@@ -71,6 +73,39 @@ const mixedBatchResponse = {
           },
         ],
       },
+    },
+  ],
+};
+
+const unreadableBatchResponse = {
+  summary: { passed: 0, needs_review: 2, total: 2 },
+  items: [
+    {
+      ...passResponse.items[0],
+      status: "NEEDS_REVIEW",
+      vision_extraction_failed: true,
+      verification: {
+        overall_verdict: "NEEDS_REVIEW",
+        latency_ms: 100,
+        results: Object.keys(fields).map((field) => ({
+          field,
+          status: "FAIL",
+          expected: fields[field],
+          found: null,
+          match_type: "test",
+          score: null,
+          normalized_application_value: null,
+          normalized_extracted_value: null,
+          message: "Extracted value is missing.",
+        })),
+      },
+    },
+    {
+      ...passResponse.items[0],
+      index: 1,
+      filename: "label-2.jpg",
+      status: "NEEDS_REVIEW",
+      vision_extraction_failed: true,
     },
   ],
 };
@@ -86,7 +121,7 @@ async function setImage(card, name = "label.jpg") {
 async function fillCard(card) {
   await setImage(card);
   await card.locator('[data-field="brand_name"]').fill(fields.brand_name);
-  await card.locator('[data-field="product_class"]').fill(fields.product_class);
+  await card.locator('[data-field="class_type"]').fill(fields.class_type);
   await card.locator('[data-field="producer"]').fill(fields.producer);
   await card.locator('[data-field="country_of_origin"]').selectOption(fields.country_of_origin);
   await card.locator('[data-field="abv"]').fill(fields.abv);
@@ -131,6 +166,24 @@ test("batch cards update controls and expose view details", async ({ page }) => 
   await page.locator(".batch-result").nth(1).locator("summary").click();
   await expect(page.locator(".batch-result").nth(1)).toContainText("Expected");
   await expect(page.locator(".batch-result").nth(1)).toContainText("Wrong Brand");
+});
+
+test("unreadable photos show one clear retry message", async ({ page }) => {
+  await page.route("**/verify/batch", async (route) => {
+    await route.fulfill({ json: unreadableBatchResponse });
+  });
+  await page.goto("/");
+
+  await fillCard(page.locator(".label-card").first());
+  await page.locator("#add-label-button").click();
+  await fillCard(page.locator(".label-card").nth(1));
+  await page.locator("#submit-button").click();
+
+  await expect(page.locator(".label-card").first()).toContainText("We couldn't read this photo");
+  await expect(page.locator(".label-card").first().locator(".inline-result.suppressed")).toHaveCount(6);
+  await page.locator(".batch-result").nth(1).locator("summary").click();
+  await expect(page.locator(".batch-result").nth(1)).toContainText("We couldn't read this photo");
+  await expect(page.locator(".batch-result").nth(1)).not.toContainText("Expected");
 });
 
 test("plain english server errors focus the error panel", async ({ page }) => {

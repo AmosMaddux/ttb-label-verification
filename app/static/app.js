@@ -25,7 +25,7 @@ let progressStartedAt = 0;
 
 const fieldLabels = {
   brand_name: "Brand name",
-  product_class: "Product type",
+  class_type: "Product type",
   producer: "Producer or company",
   country_of_origin: "Country",
   abv: "Alcohol percentage",
@@ -34,6 +34,7 @@ const fieldLabels = {
 };
 
 const fieldNames = Object.keys(fieldLabels);
+const visionFailureMessage = "We couldn't read this photo. Try another angle or better lighting.";
 
 /**
  * Show or hide the top-level message banner.
@@ -75,6 +76,14 @@ function valueOrDash(value) {
 }
 
 /**
+ * Calculate client-observed elapsed request time for result display.
+ * @returns {number} Elapsed milliseconds since submit started.
+ */
+function elapsedRequestMs() {
+  return progressStartedAt ? Math.max(0, Date.now() - progressStartedAt) : 0;
+}
+
+/**
  * Get all current label cards in display order.
  * @returns {HTMLElement[]} Label-card elements currently in the form.
  */
@@ -110,10 +119,30 @@ function clearInlineResults(card = null) {
  * Render field-level verification results inside one label card.
  * @param {HTMLElement} card Label-card element to update.
  * @param {Array<object>} fields API field results for that label.
+ * @param {boolean} visionExtractionFailed True when the vision service could not read the photo.
  * @returns {void}
  */
-function renderFields(card, fields) {
+function renderFields(card, fields, visionExtractionFailed = false) {
   clearInlineResults(card);
+
+  if (visionExtractionFailed) {
+    const items = [...card.querySelectorAll("[data-result-for]")];
+    const item = items[0];
+    if (!item) {
+      return;
+    }
+    items.slice(1).forEach((other) => {
+      other.className = "inline-result suppressed";
+      other.querySelector(".result-status").textContent = "Photo unreadable";
+      other.querySelector(".result-value").textContent = "";
+      other.querySelector(".result-message").textContent = "";
+    });
+    item.className = "inline-result review";
+    item.querySelector(".result-status").textContent = "Try another photo";
+    item.querySelector(".result-value").textContent = visionFailureMessage;
+    item.querySelector(".result-message").textContent = "";
+    return;
+  }
 
   fields.forEach((field) => {
     const item = card.querySelector(`[data-result-for="${field.field}"]`);
@@ -123,7 +152,7 @@ function renderFields(card, fields) {
     const approved = field.status === "PASS";
     item.className = `inline-result ${approved ? "approved" : "review"}`;
     item.querySelector(".result-status").textContent = approved ? "Looks good" : "Needs review";
-    item.querySelector(".result-value").textContent = valueOrDash(field.extracted_value);
+    item.querySelector(".result-value").textContent = valueOrDash(field.found);
     item.querySelector(".result-message").textContent = field.message || "";
   });
 }
@@ -148,23 +177,22 @@ function renderExtracted(extracted) {
 /**
  * Render the compact result view used when exactly one label was checked.
  * @param {object} item Single batch item returned by the API.
- * @param {object} summary Batch summary returned by the API.
  * @returns {void}
  */
-function renderSingleResult(item, summary) {
+function renderSingleResult(item) {
   resultPanel.hidden = false;
   batchSummary.hidden = true;
   batchResults.innerHTML = "";
   extractedDetails.hidden = false;
 
-  const verdict = item.verification?.verdict || item.status;
-  verdictBadge.textContent = verdict === "PASS" ? "APPROVED" : "NEEDS REVIEW";
-  verdictBadge.className = `verdict-badge ${verdict === "PASS" ? "pass" : "review"}`;
-  latency.textContent = `Checked in ${(summary.latency_ms / 1000).toFixed(1)} seconds`;
+  const verdict = item.verification?.overall_verdict || item.status;
+  verdictBadge.textContent = verdict === "APPROVED" ? "APPROVED" : "NEEDS REVIEW";
+  verdictBadge.className = `verdict-badge ${verdict === "APPROVED" ? "pass" : "review"}`;
+  latency.textContent = `Checked in ${(elapsedRequestMs() / 1000).toFixed(1)} seconds`;
 
   const firstCard = labelCards()[0];
   if (firstCard && item.verification) {
-    renderFields(firstCard, item.verification.fields);
+    renderFields(firstCard, item.verification.results, item.vision_extraction_failed);
   }
   renderExtracted(item.extracted_label || {});
 }
@@ -182,31 +210,43 @@ function renderBatchResult(body) {
 
   verdictBadge.textContent = body.summary.needs_review ? "NEEDS REVIEW" : "APPROVED";
   verdictBadge.className = `verdict-badge ${body.summary.needs_review ? "review" : "pass"}`;
-  latency.textContent = `Checked in ${(body.summary.latency_ms / 1000).toFixed(1)} seconds`;
+  latency.textContent = `Checked in ${(elapsedRequestMs() / 1000).toFixed(1)} seconds`;
   batchSummary.innerHTML = `
     <div><strong>${body.summary.passed}</strong><span>approved</span></div>
     <div><strong>${body.summary.needs_review}</strong><span>needs review</span></div>
     <div><strong>${body.summary.total}</strong><span>total</span></div>
   `;
 
-  body.results.forEach((item) => {
+  body.items.forEach((item) => {
     const details = document.createElement("details");
-    details.className = `batch-result ${item.status === "PASS" ? "approved" : "review"}`;
+    details.className = `batch-result ${item.status === "APPROVED" ? "approved" : "review"}`;
 
     const label = item.filename || `Label ${item.index + 1}`;
     details.innerHTML = `
       <summary>
         <span>${label}</span>
-        <span>${item.status === "PASS" ? "APPROVED" : "NEEDS REVIEW"}</span>
+        <span>${item.status === "APPROVED" ? "APPROVED" : "NEEDS REVIEW"}</span>
         <span class="details-action">View details</span>
       </summary>
       <div class="batch-detail"></div>
     `;
 
     const detail = details.querySelector(".batch-detail");
-    if (item.verification) {
-      const failed = item.verification.fields.filter((field) => field.status === "FAIL");
-      const passed = item.verification.fields.filter((field) => field.status === "PASS");
+    if (item.vision_extraction_failed) {
+      const row = document.createElement("article");
+      row.className = "field-result fail";
+      row.innerHTML = `
+        <div class="field-heading">
+          <h3>Photo unreadable</h3>
+          <span>Try another photo</span>
+        </div>
+        <p class="field-message"></p>
+      `;
+      row.querySelector(".field-message").textContent = visionFailureMessage;
+      detail.append(row);
+    } else if (item.verification) {
+      const failed = item.verification.results.filter((field) => field.status === "FAIL");
+      const passed = item.verification.results.filter((field) => field.status === "PASS");
       [...failed, ...passed].forEach((field) => {
         const row = document.createElement("article");
         row.className = `field-result ${field.status.toLowerCase()}`;
@@ -227,8 +267,8 @@ function renderBatchResult(body) {
           </dl>
           <p class="field-message">${field.message || ""}</p>
         `;
-        row.querySelectorAll("dd")[0].textContent = valueOrDash(field.application_value);
-        row.querySelectorAll("dd")[1].textContent = valueOrDash(field.extracted_value);
+        row.querySelectorAll("dd")[0].textContent = valueOrDash(field.expected);
+        row.querySelectorAll("dd")[1].textContent = valueOrDash(field.found);
         detail.append(row);
       });
     }
@@ -254,14 +294,14 @@ function renderBatchResult(body) {
  * @returns {void}
  */
 function renderResult(body) {
-  if (body.results.length === 1) {
-    renderSingleResult(body.results[0], body.summary);
+  if (body.items.length === 1) {
+    renderSingleResult(body.items[0]);
     return;
   }
   labelCards().forEach((card, index) => {
-    const item = body.results[index];
+    const item = body.items[index];
     if (item?.verification) {
-      renderFields(card, item.verification.fields);
+      renderFields(card, item.verification.results, item.vision_extraction_failed);
     }
   });
   renderBatchResult(body);

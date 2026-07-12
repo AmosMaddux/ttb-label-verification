@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
-from app.api.models import BatchItemResult, BatchSummary, BatchVerifyResponse, ErrorResponse, VerifyResponse
+from app.api.models import BatchItemResult, BatchResult, BatchSummary, ErrorResponse, VerifyResponse
 from app.verification.comparisons import verify_label
 from app.verification.models import ApplicationData, ExtractedLabel
 from app.vision.service import VisionService
@@ -31,7 +31,7 @@ MAX_BATCH_SIZE = 5
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 REQUIRED_FIELDS = [
     "brand_name",
-    "product_class",
+    "class_type",
     "producer",
     "country_of_origin",
     "abv",
@@ -230,15 +230,18 @@ async def _verify_image_data(
             content_type=content_type,
         )
         timings = {"vision_ms": _latency_ms(vision_start)}
+    vision_extraction_failed = bool(timings.get("vision_extraction_failed", False))
 
     compare_start = time.perf_counter()
     verification = verify_label(application, extracted)
-    timings["compare_ms"] = _latency_ms(compare_start)
+    verification.latency_ms = _latency_ms(compare_start)
+    timings["compare_ms"] = verification.latency_ms
     timings["verify_image_ms"] = _latency_ms(start)
 
     return VerifyResponse(
         verification=verification,
         latency_ms=_latency_ms(start),
+        vision_extraction_failed=vision_extraction_failed,
         extracted_label=extracted,
         timings=timings,
     )
@@ -329,9 +332,10 @@ async def _verify_batch_item(
     return BatchItemResult(
         index=index,
         filename=filename,
-        status=result.verification.verdict,
+        status=result.verification.overall_verdict,
         verification=result.verification,
         extracted_label=result.extracted_label,
+        vision_extraction_failed=result.vision_extraction_failed,
         latency_ms=_latency_ms(start),
         timings={**result.timings, "image_read_ms": image_read_ms},
         errors={},
@@ -352,7 +356,7 @@ async def verify_endpoint(
     vision_service_provider: Annotated[VisionServiceProvider, Depends(get_vision_service_provider)],
     image: Annotated[UploadFile | None, File()] = None,
     brand_name: OptionalForm = None,
-    product_class: OptionalForm = None,
+    class_type: OptionalForm = None,
     producer: OptionalForm = None,
     country_of_origin: OptionalForm = None,
     abv: OptionalForm = None,
@@ -374,7 +378,7 @@ async def verify_endpoint(
 
     field_values = {
         "brand_name": brand_name,
-        "product_class": product_class,
+        "class_type": class_type,
         "producer": producer,
         "country_of_origin": country_of_origin,
         "abv": abv,
@@ -429,10 +433,10 @@ async def verify_endpoint(
         )
 
     latency = _latency_ms(start)
-    failure_count = sum(field.status == "FAIL" for field in result.verification.fields)
+    failure_count = sum(field.status == "FAIL" for field in result.verification.results)
     _log_request(
         latency_ms=latency,
-        verdict=result.verification.verdict,
+        verdict=result.verification.overall_verdict,
         failure_count=failure_count,
         content_type=content_type,
         upload_size=upload_size,
@@ -441,20 +445,21 @@ async def verify_endpoint(
     return VerifyResponse(
         verification=result.verification,
         latency_ms=latency,
+        vision_extraction_failed=result.vision_extraction_failed,
         extracted_label=result.extracted_label,
         timings={
             **result.timings,
             "image_read_ms": image_read_ms,
             "request_total_ms": latency,
             "failure_count": failure_count,
-            "verdict": result.verification.verdict,
+            "overall_verdict": result.verification.overall_verdict,
         },
     )
 
 
 @router.post(
     "/verify/batch",
-    response_model=BatchVerifyResponse,
+    response_model=BatchResult,
     responses={
         400: {"model": ErrorResponse},
         413: {"model": ErrorResponse},
@@ -465,7 +470,7 @@ async def verify_batch_endpoint(
     vision_service_provider: Annotated[VisionServiceProvider, Depends(get_vision_service_provider)],
     images: Annotated[list[UploadFile] | None, File()] = None,
     items_json: OptionalForm = None,
-) -> BatchVerifyResponse | JSONResponse:
+) -> BatchResult | JSONResponse:
     """Handle multipart batch verification for one to five labels.
 
     Inputs:
@@ -473,7 +478,7 @@ async def verify_batch_endpoint(
         expected field dictionaries whose order must match `images`.
 
     Outputs:
-        `BatchVerifyResponse` with aggregate counts and per-label results, or an
+        `BatchResult` with aggregate counts and per-label results, or an
         `ErrorResponse` JSON body for invalid request shape, size limits, or
         unexpected server errors.
     """
@@ -568,7 +573,7 @@ async def verify_batch_endpoint(
             {"server": "Unexpected internal failure."},
         )
 
-    passed = sum(item.status == "PASS" for item in results)
+    passed = sum(item.status == "APPROVED" for item in results)
     needs_review = sum(item.status == "NEEDS_REVIEW" for item in results)
     latency = _latency_ms(start)
 
@@ -580,12 +585,11 @@ async def verify_batch_endpoint(
         len(results),
     )
 
-    return BatchVerifyResponse(
+    return BatchResult(
         summary=BatchSummary(
             passed=passed,
             needs_review=needs_review,
             total=len(results),
-            latency_ms=latency,
         ),
-        results=results,
+        items=results,
     )

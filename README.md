@@ -41,7 +41,7 @@ The app verifies these seven fields:
 Most fields are forgiving because OCR and label formatting vary. The government warning is strict
 for wording, punctuation, and capitalization, while tolerating whitespace-only OCR differences.
 
-| Field | Strategy |
+| Field | Match type |
 | --- | --- |
 | Brand name | Fuzzy token-sort match |
 | Product type | Fuzzy token-sort match |
@@ -77,10 +77,10 @@ The system separates AI extraction from deterministic verification:
 1. The browser submits label photos and application data to FastAPI.
 2. The backend validates file type, file size, and required fields.
 3. Images are downscaled and re-encoded before model submission to protect latency.
-4. The vision service asks the model for structured JSON matching the seven-field schema.
+4. The vision service asks the model for structured JSON containing the seven verification fields plus raw text and extraction confidence.
 5. Pydantic validates the structured extraction result.
 6. Pure comparison functions evaluate each field.
-7. The API returns the extracted label, per-field results, overall verdict, and latency timings.
+7. The API returns the extracted label, per-field results, `overall_verdict`, and latency timings.
 
 Batch requests process labels concurrently with per-item error isolation. One bad label does not
 fail the whole batch.
@@ -204,20 +204,65 @@ Returns service health:
 ### POST /verify
 
 Accepts one image plus seven application fields as multipart form data and returns one verification
-result.
+result. The overall verdict is `APPROVED` when every field passes, otherwise `NEEDS_REVIEW`.
 
 Required multipart fields:
 
 ```text
 image
 brand_name
-product_class
+class_type
 producer
 country_of_origin
 abv
 net_contents
 government_warning
 ```
+
+Response shape:
+
+```json
+{
+  "verification": {
+    "overall_verdict": "APPROVED",
+    "latency_ms": 12,
+    "results": [
+      {
+        "field": "brand_name",
+        "status": "PASS",
+        "expected": "Acme Reserve",
+        "found": "Acme Reserve",
+        "match_type": "fuzzy_token_sort_ratio",
+        "score": 100.0,
+        "normalized_application_value": "acme reserve",
+        "normalized_extracted_value": "acme reserve",
+        "message": "Fuzzy match passed."
+      }
+    ]
+  },
+  "latency_ms": 1421,
+  "vision_extraction_failed": false,
+  "extracted_label": {
+    "brand_name": "Acme Reserve",
+    "class_type": "Red Wine",
+    "producer": "Acme Winery LLC",
+    "country_of_origin": "USA",
+    "abv": "13.5% Alc. by Vol.",
+    "net_contents": "750 mL",
+    "government_warning": "GOVERNMENT WARNING: exact text",
+    "raw_text": "Complete transcribed label text",
+    "extraction_confidence": 0.94
+  },
+  "timings": {
+    "vision_ms": 1200,
+    "compare_ms": 12,
+    "request_total_ms": 1421
+  }
+}
+```
+
+Per-field `status` values remain `PASS` or `FAIL`. The overall verdict uses `APPROVED` or
+`NEEDS_REVIEW`.
 
 ### POST /verify/batch
 
@@ -231,6 +276,39 @@ items_json
 ```
 
 `items_json` is a JSON array. Each item corresponds to the image at the same index.
+
+Response shape:
+
+```json
+{
+  "summary": {
+    "passed": 1,
+    "needs_review": 0,
+    "total": 1
+  },
+  "items": [
+    {
+      "index": 0,
+      "filename": "label.jpg",
+      "status": "APPROVED",
+      "verification": {
+        "overall_verdict": "APPROVED",
+        "latency_ms": 12,
+        "results": []
+      },
+      "extracted_label": null,
+      "vision_extraction_failed": false,
+      "latency_ms": 1421,
+      "timings": {},
+      "errors": {}
+    }
+  ]
+}
+```
+
+Batch `summary` contains counts only. Request/item timing is reported on each item and inside the
+nested `verification.latency_ms`; the browser displays client-observed elapsed time for the overall
+batch.
 
 ## Deployment
 

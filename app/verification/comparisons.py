@@ -328,11 +328,11 @@ def _token_sort_ratio(application: str, extracted: str) -> float:
     return float(fuzz.token_sort_ratio(application, extracted))
 
 
-def _missing_result(field: str, application: str, strategy: str) -> FieldResult:
+def _missing_result(field: str, application: str, match_type: str) -> FieldResult:
     """Build the standard failed result for a missing extracted value.
 
     Inputs:
-        Field name, expected application value, and strategy name.
+        Field name, expected application value, and match type name.
 
     Outputs:
         A `FieldResult` with `FAIL`, no extracted value, and a missing-value
@@ -341,9 +341,9 @@ def _missing_result(field: str, application: str, strategy: str) -> FieldResult:
     return FieldResult(
         field=field,
         status="FAIL",
-        application_value=application,
-        extracted_value=None,
-        strategy=strategy,
+        expected=application,
+        found=None,
+        match_type=match_type,
         message="Extracted value is missing.",
     )
 
@@ -358,9 +358,9 @@ def _compare_fuzzy(field: str, application: str, extracted: str | None) -> Field
         A `FieldResult` whose status passes when the normalized RapidFuzz score
         reaches `FUZZY_THRESHOLD`.
     """
-    strategy = "fuzzy_token_sort_ratio"
+    match_type = "fuzzy_token_sort_ratio"
     if extracted is None:
-        return _missing_result(field, application, strategy)
+        return _missing_result(field, application, match_type)
 
     normalized_application = _normalize_fuzzy(application)
     normalized_extracted = _normalize_fuzzy(extracted)
@@ -370,9 +370,9 @@ def _compare_fuzzy(field: str, application: str, extracted: str | None) -> Field
     return FieldResult(
         field=field,
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=match_type,
         score=score,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
@@ -399,9 +399,9 @@ def compare_product_class(application: str, extracted: str | None) -> FieldResul
         Expected product class text and optional extracted class text.
 
     Outputs:
-        A fuzzy `FieldResult` for `product_class`.
+        A fuzzy `FieldResult` for `class_type`.
     """
-    return _compare_fuzzy("product_class", application, extracted)
+    return _compare_fuzzy("class_type", application, extracted)
 
 
 def compare_producer(application: str, extracted: str | None) -> FieldResult:
@@ -414,9 +414,9 @@ def compare_producer(application: str, extracted: str | None) -> FieldResult:
         A `FieldResult` using the better of token-sort and token-set RapidFuzz
         scores after removing role prefixes and known location suffixes.
     """
-    strategy = "producer_fuzzy_token_sort_ratio"
+    match_type = "producer_fuzzy_token_sort_ratio"
     if extracted is None:
-        return _missing_result("producer", application, strategy)
+        return _missing_result("producer", application, match_type)
 
     normalized_application = _normalize_producer(application)
     normalized_extracted = _normalize_producer(extracted)
@@ -429,9 +429,9 @@ def compare_producer(application: str, extracted: str | None) -> FieldResult:
     return FieldResult(
         field="producer",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=match_type,
         score=score,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
@@ -450,9 +450,9 @@ def compare_country_of_origin(application: str, extracted: str | None) -> FieldR
         A `FieldResult` that passes only when both sides normalize to the same
         canonical country string.
     """
-    strategy = "country_synonym_exact"
+    match_type = "country_synonym_exact"
     if extracted is None:
-        return _missing_result("country_of_origin", application, strategy)
+        return _missing_result("country_of_origin", application, match_type)
 
     normalized_application = _normalize_country(application)
     normalized_extracted = _normalize_country(extracted)
@@ -461,9 +461,9 @@ def compare_country_of_origin(application: str, extracted: str | None) -> FieldR
     return FieldResult(
         field="country_of_origin",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=match_type,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
         message="Country matched." if status == "PASS" else "Country did not match.",
@@ -525,9 +525,9 @@ def compare_abv(application: str, extracted: str | None) -> FieldResult:
         A `FieldResult` that passes when both values parse and differ by no more
         than 0.1 percentage points.
     """
-    strategy = "abv_numeric_tolerance"
+    match_type = "abv_numeric_tolerance"
     if extracted is None:
-        return _missing_result("abv", application, strategy)
+        return _missing_result("abv", application, match_type)
 
     application_abv = _parse_abv(application)
     extracted_abv = _parse_abv(extracted)
@@ -540,9 +540,9 @@ def compare_abv(application: str, extracted: str | None) -> FieldResult:
     return FieldResult(
         field="abv",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=match_type,
         normalized_application_value=None if application_abv is None else str(application_abv),
         normalized_extracted_value=None if extracted_abv is None else str(extracted_abv),
         message="ABV matched within tolerance." if status == "PASS" else "ABV did not match.",
@@ -583,9 +583,9 @@ def compare_net_contents(application: str, extracted: str | None) -> FieldResult
         A `FieldResult` that passes when both parsed milliliter amounts are
         within 1 mL.
     """
-    strategy = "net_contents_ml_tolerance"
+    match_type = "net_contents_ml_tolerance"
     if extracted is None:
-        return _missing_result("net_contents", application, strategy)
+        return _missing_result("net_contents", application, match_type)
 
     application_ml = _parse_net_contents(application)
     extracted_ml = _parse_net_contents(extracted)
@@ -598,9 +598,9 @@ def compare_net_contents(application: str, extracted: str | None) -> FieldResult
     return FieldResult(
         field="net_contents",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=match_type,
         normalized_application_value=None if application_ml is None else str(application_ml),
         normalized_extracted_value=None if extracted_ml is None else str(extracted_ml),
         message=(
@@ -621,9 +621,9 @@ def compare_government_warning(application: str, extracted: str | None) -> Field
         A `FieldResult` that passes only when wording, case, and punctuation are
         identical after line breaks and repeated whitespace are collapsed.
     """
-    strategy = "exact_case_sensitive_whitespace_collapsed"
+    match_type = "exact_case_sensitive_whitespace_collapsed"
     if extracted is None:
-        return _missing_result("government_warning", application, strategy)
+        return _missing_result("government_warning", application, match_type)
 
     normalized_application = _collapse_whitespace(application)
     normalized_extracted = _collapse_whitespace(extracted)
@@ -632,9 +632,9 @@ def compare_government_warning(application: str, extracted: str | None) -> Field
     return FieldResult(
         field="government_warning",
         status=status,
-        application_value=application,
-        extracted_value=extracted,
-        strategy=strategy,
+        expected=application,
+        found=extracted,
+        match_type=match_type,
         normalized_application_value=normalized_application,
         normalized_extracted_value=normalized_extracted,
         message=(
@@ -654,16 +654,16 @@ def verify_label(application: ApplicationData, extracted: ExtractedLabel) -> Ver
 
     Outputs:
         A `VerificationResult` containing seven ordered field results and
-        `PASS` only when every field passes; otherwise `NEEDS_REVIEW`.
+        `APPROVED` only when every field passes; otherwise `NEEDS_REVIEW`.
     """
     fields = [
         compare_brand_name(application.brand_name, extracted.brand_name),
-        compare_product_class(application.product_class, extracted.product_class),
+        compare_product_class(application.class_type, extracted.class_type),
         compare_producer(application.producer, extracted.producer),
         compare_country_of_origin(application.country_of_origin, extracted.country_of_origin),
         compare_abv(application.abv, extracted.abv),
         compare_net_contents(application.net_contents, extracted.net_contents),
         compare_government_warning(application.government_warning, extracted.government_warning),
     ]
-    verdict = "NEEDS_REVIEW" if any(field.status == "FAIL" for field in fields) else "PASS"
-    return VerificationResult(verdict=verdict, fields=fields)
+    overall_verdict = "NEEDS_REVIEW" if any(field.status == "FAIL" for field in fields) else "APPROVED"
+    return VerificationResult(overall_verdict=overall_verdict, latency_ms=0, results=fields)

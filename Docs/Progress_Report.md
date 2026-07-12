@@ -52,10 +52,10 @@ Final Phase 7 live audit on June 22, 2026:
 
 ```text
 Health: PASS, HTTP 200 {"status":"ok"}
-Single valid label: PASS, verdict=PASS, latency=1692 ms
-Warning exact/case mismatch: PASS, verdict=NEEDS_REVIEW, warning=FAIL, latency=1421 ms
-Imperfect image: PASS, verdict=PASS, latency=2316 ms
-Batch: PASS, summary={passed: 2, needs_review: 1, total: 3, latency_ms: 2412}
+Single valid label: PASS, overall_verdict=APPROVED, latency=1692 ms
+Warning exact/case mismatch: PASS, overall_verdict=NEEDS_REVIEW, warning=FAIL, latency=1421 ms
+Imperfect image: PASS, overall_verdict=APPROVED, latency=2316 ms
+Batch: PASS, summary={passed: 2, needs_review: 1, total: 3}
 ```
 
 The frontend uses same-origin API paths and the backend remains stateless.
@@ -304,7 +304,7 @@ Strict government warning behavior:
 - Whitespace-only differences such as repeated spaces, tabs, or line breaks pass.
 - Missing extracted warning fails.
 - Reworded warning fails.
-- Misread warning failures preserve the exact extracted warning text in `FieldResult.extracted_value`.
+- Misread warning failures preserve the exact extracted warning text in `FieldResult.found`.
 
 The implementation uses strict case-sensitive comparison after whitespace collapse for the
 government warning:
@@ -449,12 +449,12 @@ Implemented behavior:
 - Missing image and missing/blank fields return readable `400` JSON errors.
 - Bad file type returns readable `415` JSON error.
 - Oversized file returns readable `413` JSON error.
-- Response includes `verification`, `verification.verdict`, all per-field results,
+- Response includes `verification`, `verification.overall_verdict`, all per-field results,
   `latency_ms`, and `extracted_label`.
-- Failed fields include expected-vs-found values through `application_value` and
-  `extracted_value`.
+- Failed fields include expected-vs-found values through `expected` and
+  `found`.
 - Government warning extracted text is surfaced in both `extracted_label.government_warning` and
-  the `government_warning` field result's `extracted_value`.
+  the `government_warning` field result's `found`.
 - Latency is measured for each request and logged.
 - Requests over `5000 ms` produce warning-level logs for the single-label budget.
 - Endpoint tests use mocked vision service and do not call OpenAI.
@@ -498,7 +498,7 @@ HTTP_STATUS:415
 Empty submission:
 
 ```json
-{"message":"Please provide an image and all required label fields.","errors":{"image":"Image file is required.","brand_name":"This field is required.","product_class":"This field is required.","producer":"This field is required.","country_of_origin":"This field is required.","abv":"This field is required.","net_contents":"This field is required.","government_warning":"This field is required."}}
+{"message":"Please provide an image and all required label fields.","errors":{"image":"Image file is required.","brand_name":"This field is required.","class_type":"This field is required.","producer":"This field is required.","country_of_origin":"This field is required.","abv":"This field is required.","net_contents":"This field is required.","government_warning":"This field is required."}}
 ```
 
 ```text
@@ -604,7 +604,7 @@ Live Phase 5-style batch check:
 
 ```text
 3-label batch returned HTTP 200
-summary={passed: 2, needs_review: 1, total: 3, latency_ms: 2412}
+summary={passed: 2, needs_review: 1, total: 3}
 ```
 
 ## Phase 6 Hardening, Latency, Validation, And Accessibility
@@ -721,10 +721,10 @@ Final Phase 7 live verification on June 22, 2026:
 
 ```text
 Health: PASS, HTTP 200 {"status":"ok"}
-Single valid label: PASS, verdict=PASS, latency=1692 ms
-Warning exact/case mismatch: PASS, verdict=NEEDS_REVIEW, warning=FAIL, latency=1421 ms
-Imperfect image: PASS, verdict=PASS, latency=2316 ms
-Batch: PASS, summary={passed: 2, needs_review: 1, total: 3, latency_ms: 2412}
+Single valid label: PASS, overall_verdict=APPROVED, latency=1692 ms
+Warning exact/case mismatch: PASS, overall_verdict=NEEDS_REVIEW, warning=FAIL, latency=1421 ms
+Imperfect image: PASS, overall_verdict=APPROVED, latency=2316 ms
+Batch: PASS, summary={passed: 2, needs_review: 1, total: 3}
 ```
 
 ## Important Decisions

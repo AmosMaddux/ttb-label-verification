@@ -40,7 +40,7 @@ BAREFOOT_WARNING_WITH_LINE_BREAKS = (
 def make_application(**overrides: str) -> ApplicationData:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "United States",
         "abv": "13.5%",
@@ -54,7 +54,7 @@ def make_application(**overrides: str) -> ApplicationData:
 def make_extracted(**overrides: str | None) -> ExtractedLabel:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "USA",
         "abv": "13.5 % alc/vol",
@@ -71,19 +71,19 @@ def test_models_accept_and_serialize_expected_shapes() -> None:
     field = FieldResult(
         field="brand_name",
         status="PASS",
-        application_value="Acme",
-        extracted_value="acme",
-        strategy="fuzzy",
+        expected="Acme",
+        found="acme",
+        match_type="fuzzy",
         score=100.0,
         normalized_application_value="acme",
         normalized_extracted_value="acme",
         message="Matched",
     )
-    result = VerificationResult(verdict="PASS", fields=[field])
+    result = VerificationResult(overall_verdict="APPROVED", latency_ms=0, results=[field])
 
     assert application.brand_name == "Acme Reserve"
     assert extracted.brand_name is None
-    assert result.model_dump()["fields"][0]["status"] == "PASS"
+    assert result.model_dump()["results"][0]["status"] == "PASS"
 
 
 def test_brand_exact_match_passes() -> None:
@@ -125,13 +125,13 @@ def test_brand_materially_different_value_fails() -> None:
     assert result.status == "FAIL"
 
 
-def test_product_class_fuzzy_equivalent_passes() -> None:
+def test_class_type_fuzzy_equivalent_passes() -> None:
     result = compare_product_class("Cabernet Sauvignon", "cabernet-sauvignon")
 
     assert result.status == "PASS"
 
 
-def test_product_class_wrong_class_fails() -> None:
+def test_class_type_wrong_class_fails() -> None:
     result = compare_product_class("Red Wine", "Vodka")
 
     assert result.status == "FAIL"
@@ -447,7 +447,7 @@ def test_government_warning_extracted_value_is_original_not_normalized() -> None
     result = compare_government_warning(CANONICAL_WARNING, extra_space)
 
     assert result.status == "PASS"
-    assert result.extracted_value == extra_space
+    assert result.found == extra_space
     assert result.normalized_extracted_value == CANONICAL_WARNING
 
 
@@ -480,20 +480,20 @@ def test_misread_government_warning_failure_keeps_extracted_text() -> None:
     result = compare_government_warning(CANONICAL_WARNING, misread)
 
     assert result.status == "FAIL"
-    assert result.extracted_value == misread
+    assert result.found == misread
 
 
 def test_all_fields_passing_gives_pass_verdict() -> None:
     result = verify_label(make_application(), make_extracted())
 
-    assert result.verdict == "PASS"
-    assert all(field.status == "PASS" for field in result.fields)
+    assert result.overall_verdict == "APPROVED"
+    assert all(field.status == "PASS" for field in result.results)
 
 
 def test_one_failing_field_gives_needs_review() -> None:
     result = verify_label(make_application(), make_extracted(brand_name="Wrong Brand"))
 
-    assert result.verdict == "NEEDS_REVIEW"
+    assert result.overall_verdict == "NEEDS_REVIEW"
 
 
 def test_multiple_failing_fields_still_gives_needs_review() -> None:
@@ -502,15 +502,15 @@ def test_multiple_failing_fields_still_gives_needs_review() -> None:
         make_extracted(brand_name="Wrong Brand", government_warning="wrong warning"),
     )
 
-    assert result.verdict == "NEEDS_REVIEW"
+    assert result.overall_verdict == "NEEDS_REVIEW"
 
 
 def test_result_includes_one_field_result_per_compared_field() -> None:
     result = verify_label(make_application(), make_extracted())
 
-    assert [field.field for field in result.fields] == [
+    assert [field.field for field in result.results] == [
         "brand_name",
-        "product_class",
+        "class_type",
         "producer",
         "country_of_origin",
         "abv",
@@ -523,16 +523,16 @@ def test_failed_government_warning_result_includes_exact_extracted_warning_text(
     extracted_warning = "GOVERNMENT WARNING (1) misread"
 
     result = verify_label(make_application(), make_extracted(government_warning=extracted_warning))
-    warning_result = next(field for field in result.fields if field.field == "government_warning")
+    warning_result = next(field for field in result.results if field.field == "government_warning")
 
     assert warning_result.status == "FAIL"
-    assert warning_result.extracted_value == extracted_warning
+    assert warning_result.found == extracted_warning
 
 
 def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
     application = ApplicationData(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="BAREFOOT WINES",
         country_of_origin="USA",
         abv="14.5%",
@@ -541,7 +541,7 @@ def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
     )
     extracted = ExtractedLabel(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
         country_of_origin="CALIFORNIA",
         abv="14.5%",
@@ -551,14 +551,14 @@ def test_barefoot_cleaned_extraction_passes_all_fields() -> None:
 
     result = verify_label(application, extracted)
 
-    assert result.verdict == "PASS"
-    assert all(field.status == "PASS" for field in result.fields)
+    assert result.overall_verdict == "APPROVED"
+    assert all(field.status == "PASS" for field in result.results)
 
 
 def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
     application = ApplicationData(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="BAREFOOT WINES",
         country_of_origin="USA",
         abv="14.5%",
@@ -567,7 +567,7 @@ def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
     )
     extracted = ExtractedLabel(
         brand_name="BAREFOOT",
-        product_class="PINK MOSCATO",
+        class_type="PINK MOSCATO",
         producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
         country_of_origin="CALIFORNIA",
         abv="IA 5c, ME 15%",
@@ -576,7 +576,7 @@ def test_barefoot_bad_abv_extraction_still_fails_abv() -> None:
     )
 
     result = verify_label(application, extracted)
-    abv_result = next(field for field in result.fields if field.field == "abv")
+    abv_result = next(field for field in result.results if field.field == "abv")
 
-    assert result.verdict == "NEEDS_REVIEW"
+    assert result.overall_verdict == "NEEDS_REVIEW"
     assert abv_result.status == "FAIL"

@@ -219,7 +219,7 @@ no AI or network dependency at runtime.
 Fields:
 
 - `brand_name: str`
-- `product_class: str`
+- `class_type: str`
 - `producer: str`
 - `country_of_origin: str`
 - `abv: str`
@@ -232,7 +232,7 @@ OCR/vision extraction may miss fields.
 Fields:
 
 - `brand_name: str | None = None`
-- `product_class: str | None = None`
+- `class_type: str | None = None`
 - `producer: str | None = None`
 - `country_of_origin: str | None = None`
 - `abv: str | None = None`
@@ -245,9 +245,9 @@ Fields:
 
 - `field: str`
 - `status: Literal["PASS", "FAIL"]`
-- `application_value: str`
-- `extracted_value: str | None`
-- `strategy: str`
+- `expected: str`
+- `found: str | None`
+- `match_type: str`
 - `score: float | None = None`
 - `normalized_application_value: str | None = None`
 - `normalized_extracted_value: str | None = None`
@@ -257,13 +257,13 @@ Fields:
 
 Fields:
 
-- `verdict: Literal["PASS", "NEEDS_REVIEW"]`
+- `verdict: Literal["APPROVED", "NEEDS_REVIEW"]`
 - `fields: list[FieldResult]`
 
 Verdict rule:
 
 - If any `FieldResult.status == "FAIL"`, verdict is `NEEDS_REVIEW`.
-- Otherwise verdict is `PASS`.
+- Otherwise overall_verdict is `APPROVED`.
 - Missing extracted values count as `FAIL`.
 
 ## Comparison Strategies
@@ -358,7 +358,7 @@ Government warning comparison:
 - Any missing, changed-case, missing-punctuation, missing-colon, misspelled, or reworded warning
   fails.
 - Whitespace-only differences pass.
-- On failure, the `FieldResult.extracted_value` must preserve and return the extracted warning text
+- On failure, the `FieldResult.found` must preserve and return the extracted warning text
   exactly as received, so a user can see what the model/OCR read.
 
 Top-level function:
@@ -428,11 +428,11 @@ Government warning tests:
 - Newlines and tabs are treated as spaces.
 - Missing extracted warning fails.
 - Reworded warning fails.
-- Misread warning failure keeps extracted warning text in `FieldResult.extracted_value`.
+- Misread warning failure keeps extracted warning text in `FieldResult.found`.
 
 Verification result tests:
 
-- All fields passing gives `verdict == "PASS"`.
+- All fields passing gives `overall_verdict == "APPROVED"`.
 - One failing field gives `verdict == "NEEDS_REVIEW"`.
 - Multiple failing fields still gives `NEEDS_REVIEW`.
 - Result includes one `FieldResult` per compared field.
@@ -479,7 +479,7 @@ Phase 2 is approved with the clarifications and test additions below.
 ## Structured Extraction Behavior
 
 - Send the preprocessed image to the Responses API as image input with `detail: "high"` because label text and the government warning require readable fine detail.
-- Request Structured Outputs with a strict JSON schema matching `ExtractedLabel`: `brand_name`, `product_class`, `producer`, `country_of_origin`, `abv`, `net_contents`, and `government_warning`, each `string | null`, with no extra properties.
+- Request Structured Outputs with a strict JSON schema matching `ExtractedLabel`: `brand_name`, `class_type`, `producer`, `country_of_origin`, `abv`, `net_contents`, and `government_warning`, each `string | null`, with no extra properties.
 - Parse only the structured response object and validate it with `ExtractedLabel.model_validate`; do not regex, substring, or string-parse the model response.
 - Treat missing structured output, malformed JSON, wrong field types, extra properties, or Pydantic validation errors as controlled extraction failure. Return an all-null `ExtractedLabel` and log a concise warning.
 - For blurry, angled, glare-obscured, cropped, or partially unreadable images, return partial data with unreadable fields as `null`; do not throw just because image quality is poor.
@@ -499,7 +499,7 @@ Extract these seven fields:
 1. brand_name
    The brand name shown on the label.
 
-2. product_class
+2. class_type
    The product type or class shown on the label, such as wine, red wine, vodka, whiskey, beer, cider, or another visible class/type statement.
 
 3. producer
@@ -596,9 +596,9 @@ Phase 3 is approved with the clarifications and test additions below.
 - Bad file type must return a clear `415` JSON error, never a `500`.
 - Empty submissions, including an empty multipart body or a request with no file and no usable form fields, must return a clear `400` JSON error, never a `500`.
 - The success response must include:
-  - Per-field `verification.fields`.
-  - Expected-vs-found values on failures through each `FieldResult.application_value` and `FieldResult.extracted_value`.
-  - Overall `verification.verdict`.
+  - Per-field `verification.results`.
+  - Expected-vs-found values on failures through each `FieldResult.expected` and `FieldResult.found`.
+  - Overall `verification.overall_verdict`.
   - Endpoint `latency_ms`.
   - `extracted_label`, including `government_warning`, so the warning text read by the model is surfaced.
 - The 5-second single-label budget must be measured for every `/verify` request and logged with the verdict. Requests over `5000 ms` must produce a warning log.
@@ -611,7 +611,7 @@ Request: `multipart/form-data`
 - `image`: required file upload.
 - Required form fields:
   - `brand_name`
-  - `product_class`
+  - `class_type`
   - `producer`
   - `country_of_origin`
   - `abv`
@@ -636,13 +636,13 @@ Response model:
   ```json
   {
     "verification": {
-      "verdict": "PASS",
-      "fields": []
+      "overall_verdict": "APPROVED",
+      "results": []
     },
     "latency_ms": 1234,
     "extracted_label": {
       "brand_name": null,
-      "product_class": null,
+      "class_type": null,
       "producer": null,
       "country_of_origin": null,
       "abv": null,
@@ -652,8 +652,8 @@ Response model:
   }
   ```
 - `verification` is the existing `VerificationResult`.
-- `verification.fields` must be returned in full. Each failed field includes the expected value in
-  `application_value` and the found value in `extracted_value`.
+- `verification.results` must be returned in full. Each failed field includes the expected value in
+  `expected` and the found value in `found`.
 - `latency_ms` is measured around the full endpoint orchestration after basic request parsing starts.
 - `extracted_label` is included so users can see what the model read when a field fails.
 - `extracted_label.government_warning` must be included exactly as extracted, including on warning
@@ -710,16 +710,16 @@ Required non-500 cases:
 - Government warning remains case-sensitive after whitespace collapse because `/verify` delegates
   comparison to the existing Phase 1 `verify_label`.
 - Government warning extracted text is surfaced twice on failures: in `extracted_label.government_warning`
-  and in the `government_warning` `FieldResult.extracted_value`.
+  and in the `government_warning` `FieldResult.found`.
 
 ## Endpoint Tests With Mocked VisionService
 
 - Successful request with valid JPEG and all application fields returns `200`.
 - Successful response includes `verification`, `latency_ms`, and `extracted_label`.
-- Successful response includes `verification.verdict`.
-- Successful response includes one `verification.fields` entry per compared field.
-- Failed field response includes expected-vs-found values via `application_value` and `extracted_value`.
-- All matching mocked extracted fields returns `verdict == "PASS"`.
+- Successful response includes `verification.overall_verdict`.
+- Successful response includes one `verification.results` entry per compared field.
+- Failed field response includes expected-vs-found values via `expected` and `found`.
+- All matching mocked extracted fields returns `overall_verdict == "APPROVED"`.
 - One mismatched mocked field returns `verdict == "NEEDS_REVIEW"`.
 - Partial mocked extraction with null fields returns `NEEDS_REVIEW`, not an exception.
 - Mocked blurry/glare case returns partial data and still returns `200`.
@@ -734,7 +734,7 @@ Required non-500 cases:
 - Government warning mismatch response includes the extracted warning text in
   `extracted_label.government_warning`.
 - Government warning mismatch response includes the extracted warning text in the
-  `government_warning` field result's `extracted_value`.
+  `government_warning` field result's `found`.
 - Mocked VisionService exception returns generic `500` with no stack trace.
 - Response latency is present, numeric, and non-negative.
 - Latency measurement is logged for successful and 4xx responses.
@@ -785,7 +785,7 @@ Review result: the earlier plan was close, but a few items needed tightening for
 - Show the chosen image filename and preview immediately after selection.
 - Disable the button until all seven fields and an image are present, with plain text above it: `Add the missing items to check this label.`
 - Loading state says: `Checking the label. This may take a few seconds.`
-- Keep the backend field names unchanged: `image`, `brand_name`, `product_class`, `producer`,
+- Keep the backend field names unchanged: `image`, `brand_name`, `class_type`, `producer`,
   `country_of_origin`, `abv`, `net_contents`, and `government_warning`.
 
 ## Results Layout
@@ -835,21 +835,21 @@ Review result: the earlier plan was close, but a few items needed tightening for
 - Multipart field names must match the backend:
   - `image`
   - `brand_name`
-  - `product_class`
+  - `class_type`
   - `producer`
   - `country_of_origin`
   - `abv`
   - `net_contents`
   - `government_warning`
 - Map user-facing labels to backend names:
-  - `Product type` -> `product_class`
+  - `Product type` -> `class_type`
   - `Producer or company` -> `producer`
   - `Country` -> `country_of_origin`
   - `Alcohol percentage` -> `abv`
   - `Bottle size` -> `net_contents`
-- On success, render `verification.verdict`, `verification.fields`, `latency_ms`, and `extracted_label`.
-- Use `verification.fields` to apply pass/fail styling and status text to the inline result boxes.
-- Use `extracted_label` and each field result's `extracted_value` to populate the inline
+- On success, render `verification.overall_verdict`, `verification.results`, `latency_ms`, and `extracted_label`.
+- Use `verification.results` to apply pass/fail styling and status text to the inline result boxes.
+- Use `extracted_label` and each field result's `found` to populate the inline
   `Found on label` values.
 - On error, render the backend `message` and `errors` as plain-English form errors.
 
@@ -859,7 +859,7 @@ Review result: the earlier plan was close, but a few items needed tightening for
 - Button is disabled until image plus all seven fields are present.
 - Valid submit sends multipart form data with exact backend field names.
 - Loading state disables controls and uses plain text.
-- `PASS` response shows large `APPROVED`.
+- `APPROVED` response shows large `APPROVED`.
 - `NEEDS_REVIEW` response shows large `NEEDS REVIEW`.
 - Desktop/tablet layout shows two white cards with the photo card on the left and the application
   data/results card on the right.
@@ -923,7 +923,7 @@ Request: `multipart/form-data`
 - Max total image bytes: `25 MB`.
 - Each item requires:
   - `brand_name`
-  - `product_class`
+  - `class_type`
   - `producer`
   - `country_of_origin`
   - `abv`
@@ -976,7 +976,7 @@ A per-item error returns that item with `status: "NEEDS_REVIEW"` and human-reada
 - Add batch response models:
   - `BatchSummary`
   - `BatchItemResult`
-  - `BatchVerifyResponse`
+  - `BatchResult`
 - Process valid items with `asyncio.gather`.
 - Bound concurrency with `asyncio.Semaphore(5)`.
 - Never allow one item exception to escape and fail the whole batch.
@@ -1279,7 +1279,7 @@ the repo.
 Run one clean deployed pass against the Railway URL:
 
 - `GET /health` returns `200` and `{"status":"ok"}`.
-- A valid single label returns `PASS` / `APPROVED`.
+- A valid single label returns `APPROVED`.
 - A case-only government-warning mismatch returns `NEEDS_REVIEW` with the warning field failing.
 - An imperfect image returns a normal verification result or controlled readable error.
 - A three-label batch returns correct summary counts and individual item results.

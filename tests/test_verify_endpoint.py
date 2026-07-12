@@ -8,9 +8,10 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import ValidationError
 
-from app.api.models import BatchItemResult, BatchVerifyResponse, VerifyResponse
+from app.api.models import BatchItemResult, BatchResult, VerifyResponse
 from app.api.verify import verify_batch_endpoint, verify_endpoint
 from app.verification.models import ExtractedLabel
+from app.vision.service import VisionExtractionResult, null_extracted_label
 
 
 CANONICAL_WARNING = (
@@ -81,6 +82,21 @@ class SlowMockVisionService:
         return self.extracted
 
 
+class MetricsMockVisionService:
+    def __init__(self, extraction: VisionExtractionResult) -> None:
+        self.extraction = extraction
+        self.calls = 0
+
+    async def extract_label_with_metrics(
+        self,
+        image_bytes: bytes,
+        filename: str | None = None,
+        content_type: str | None = None,
+    ) -> VisionExtractionResult:
+        self.calls += 1
+        return self.extraction
+
+
 def image_bytes(image_format: str = "JPEG") -> bytes:
     image = Image.new("RGB", (64, 64), "white")
     buffer = BytesIO()
@@ -105,7 +121,7 @@ def upload_file(content: bytes | None = None, content_type: str = "image/jpeg") 
 def matching_extracted_label(**overrides: str | None) -> ExtractedLabel:
     values = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "USA",
         "abv": "13.5% Alc. by Vol.",
@@ -119,7 +135,7 @@ def matching_extracted_label(**overrides: str | None) -> ExtractedLabel:
 def form_data(**overrides: str | None) -> dict[str, str | None]:
     values: dict[str, str | None] = {
         "brand_name": "Acme Reserve",
-        "product_class": "Red Wine",
+        "class_type": "Red Wine",
         "producer": "Acme Winery LLC",
         "country_of_origin": "United States",
         "abv": "13.5%",
@@ -139,14 +155,14 @@ def provider_for(mock: MockVisionService):
     return lambda: mock
 
 
-def response_body(response: VerifyResponse | BatchVerifyResponse | JSONResponse) -> dict:
-    if isinstance(response, VerifyResponse | BatchVerifyResponse):
+def response_body(response: VerifyResponse | BatchResult | JSONResponse) -> dict:
+    if isinstance(response, VerifyResponse | BatchResult):
         return response.model_dump(mode="json")
     return json.loads(response.body)
 
 
-def response_status(response: VerifyResponse | BatchVerifyResponse | JSONResponse) -> int:
-    if isinstance(response, VerifyResponse | BatchVerifyResponse):
+def response_status(response: VerifyResponse | BatchResult | JSONResponse) -> int:
+    if isinstance(response, VerifyResponse | BatchResult):
         return 200
     return response.status_code
 
@@ -162,7 +178,7 @@ async def call_verify(
         vision_service_provider=provider_for(mock),
         image=image,
         brand_name=values.get("brand_name"),
-        product_class=values.get("product_class"),
+        class_type=values.get("class_type"),
         producer=values.get("producer"),
         country_of_origin=values.get("country_of_origin"),
         abv=values.get("abv"),
@@ -176,7 +192,7 @@ async def call_batch_verify(
     *,
     items: list[dict[str, str | None]] | None = None,
     images: list[MockUploadFile] | None = None,
-) -> BatchVerifyResponse | JSONResponse:
+) -> BatchResult | JSONResponse:
     values = items if items is not None else [form_data()]
     upload_images = images if images is not None else [upload_file() for _ in values]
     return await verify_batch_endpoint(
@@ -194,14 +210,55 @@ async def test_successful_verify_returns_full_verification_result() -> None:
     body = response_body(response)
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "PASS"
-    assert len(body["verification"]["fields"]) == 7
+    assert body["verification"]["overall_verdict"] == "APPROVED"
+    assert len(body["verification"]["results"]) == 7
     assert isinstance(body["latency_ms"], int)
     assert body["latency_ms"] >= 0
     assert body["timings"]["request_total_ms"] >= 0
     assert body["timings"]["image_read_ms"] >= 0
     assert body["timings"]["compare_ms"] >= 0
+    assert body["vision_extraction_failed"] is False
     assert body["extracted_label"]["government_warning"] == CANONICAL_WARNING
+    assert mock.calls == 1
+
+
+@pytest.mark.anyio
+async def test_verify_endpoint_flags_preprocessing_extraction_failure() -> None:
+    mock = MetricsMockVisionService(
+        VisionExtractionResult(
+            label=null_extracted_label(),
+            timings={
+                "preprocess_ms": 1,
+                "vision_ms": 0,
+                "vision_extraction_failed": True,
+            },
+        )
+    )
+
+    response = await call_verify(mock, image=upload_file())
+    body = response_body(response)
+
+    assert response_status(response) == 200
+    assert body["vision_extraction_failed"] is True
+    assert body["timings"]["vision_extraction_failed"] is True
+    assert mock.calls == 1
+
+
+@pytest.mark.anyio
+async def test_verify_endpoint_flags_provider_extraction_failure() -> None:
+    mock = MetricsMockVisionService(
+        VisionExtractionResult(
+            label=null_extracted_label(),
+            timings={"vision_ms": 1, "vision_extraction_failed": True},
+        )
+    )
+
+    response = await call_verify(mock, image=upload_file())
+    body = response_body(response)
+
+    assert response_status(response) == 200
+    assert body["vision_extraction_failed"] is True
+    assert body["timings"]["vision_extraction_failed"] is True
     assert mock.calls == 1
 
 
@@ -212,14 +269,14 @@ async def test_failure_includes_expected_vs_found_and_overall_verdict() -> None:
     response = await call_verify(mock, image=upload_file())
     body = response_body(response)
     brand_result = next(
-        field for field in body["verification"]["fields"] if field["field"] == "brand_name"
+        field for field in body["verification"]["results"] if field["field"] == "brand_name"
     )
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     assert brand_result["status"] == "FAIL"
-    assert brand_result["application_value"] == "Acme Reserve"
-    assert brand_result["extracted_value"] == "Wrong Brand"
+    assert brand_result["expected"] == "Acme Reserve"
+    assert brand_result["found"] == "Wrong Brand"
 
 
 @pytest.mark.anyio
@@ -230,13 +287,13 @@ async def test_warning_extracted_text_is_surfaced_on_failure() -> None:
     response = await call_verify(mock, image=upload_file())
     body = response_body(response)
     warning_result = next(
-        field for field in body["verification"]["fields"] if field["field"] == "government_warning"
+        field for field in body["verification"]["results"] if field["field"] == "government_warning"
     )
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     assert body["extracted_label"]["government_warning"] == title_case_warning
-    assert warning_result["extracted_value"] == title_case_warning
+    assert warning_result["found"] == title_case_warning
 
 
 @pytest.mark.anyio
@@ -250,13 +307,13 @@ async def test_warning_whitespace_only_difference_passes_and_preserves_original(
     response = await call_verify(mock, image=upload_file())
     body = response_body(response)
     warning_result = next(
-        field for field in body["verification"]["fields"] if field["field"] == "government_warning"
+        field for field in body["verification"]["results"] if field["field"] == "government_warning"
     )
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "PASS"
+    assert body["verification"]["overall_verdict"] == "APPROVED"
     assert warning_result["status"] == "PASS"
-    assert warning_result["extracted_value"] == warning_with_newline
+    assert warning_result["found"] == warning_with_newline
     assert warning_result["normalized_extracted_value"] == CANONICAL_WARNING
 
 
@@ -269,7 +326,7 @@ async def test_barefoot_style_cleaned_extraction_returns_pass() -> None:
     mock = MockVisionService(
         extracted=ExtractedLabel(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
             country_of_origin="CALIFORNIA",
             abv="14.5%",
@@ -282,7 +339,7 @@ async def test_barefoot_style_cleaned_extraction_returns_pass() -> None:
         mock,
         data=form_data(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="BAREFOOT WINES",
             country_of_origin="USA",
             abv="14.5%",
@@ -293,7 +350,7 @@ async def test_barefoot_style_cleaned_extraction_returns_pass() -> None:
     )
 
     assert response_status(response) == 200
-    assert response_body(response)["verification"]["verdict"] == "PASS"
+    assert response_body(response)["verification"]["overall_verdict"] == "APPROVED"
 
 
 @pytest.mark.anyio
@@ -305,7 +362,7 @@ async def test_barefoot_style_bad_abv_returns_needs_review() -> None:
     mock = MockVisionService(
         extracted=ExtractedLabel(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
             country_of_origin="CALIFORNIA",
             abv="IA 5c, ME 15%",
@@ -318,7 +375,7 @@ async def test_barefoot_style_bad_abv_returns_needs_review() -> None:
         mock,
         data=form_data(
             brand_name="BAREFOOT",
-            product_class="PINK MOSCATO",
+            class_type="PINK MOSCATO",
             producer="BAREFOOT WINES",
             country_of_origin="USA",
             abv="14.5%",
@@ -328,10 +385,10 @@ async def test_barefoot_style_bad_abv_returns_needs_review() -> None:
         image=upload_file(),
     )
     body = response_body(response)
-    abv_result = next(field for field in body["verification"]["fields"] if field["field"] == "abv")
+    abv_result = next(field for field in body["verification"]["results"] if field["field"] == "abv")
 
     assert response_status(response) == 200
-    assert body["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert body["verification"]["overall_verdict"] == "NEEDS_REVIEW"
     assert abv_result["status"] == "FAIL"
 
 
@@ -342,7 +399,7 @@ async def test_partial_extraction_returns_needs_review_not_exception() -> None:
     response = await call_verify(mock, image=upload_file())
 
     assert response_status(response) == 200
-    assert response_body(response)["verification"]["verdict"] == "NEEDS_REVIEW"
+    assert response_body(response)["verification"]["overall_verdict"] == "NEEDS_REVIEW"
 
 
 @pytest.mark.anyio
@@ -503,11 +560,29 @@ async def test_batch_size_one_returns_summary_and_result() -> None:
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 0
     assert body["summary"]["total"] == 1
-    assert body["results"][0]["index"] == 0
-    assert body["results"][0]["status"] == "PASS"
-    assert body["results"][0]["verification"]["verdict"] == "PASS"
-    assert body["results"][0]["timings"]["image_read_ms"] >= 0
-    assert body["results"][0]["timings"]["compare_ms"] >= 0
+    assert body["items"][0]["index"] == 0
+    assert body["items"][0]["status"] == "APPROVED"
+    assert body["items"][0]["verification"]["overall_verdict"] == "APPROVED"
+    assert body["items"][0]["timings"]["image_read_ms"] >= 0
+    assert body["items"][0]["timings"]["compare_ms"] >= 0
+    assert mock.calls == 1
+
+
+@pytest.mark.anyio
+async def test_batch_item_includes_vision_extraction_failed_flag() -> None:
+    mock = MetricsMockVisionService(
+        VisionExtractionResult(
+            label=null_extracted_label(),
+            timings={"vision_ms": 1, "vision_extraction_failed": True},
+        )
+    )
+
+    response = await call_batch_verify(mock)
+    body = response_body(response)
+
+    assert response_status(response) == 200
+    assert body["items"][0]["vision_extraction_failed"] is True
+    assert body["items"][0]["timings"]["vision_extraction_failed"] is True
     assert mock.calls == 1
 
 
@@ -527,9 +602,9 @@ async def test_batch_mixed_results_have_correct_summary_counts() -> None:
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 1
     assert body["summary"]["total"] == 2
-    assert [item["index"] for item in body["results"]] == [0, 1]
-    assert body["results"][0]["status"] == "PASS"
-    assert body["results"][1]["status"] == "NEEDS_REVIEW"
+    assert [item["index"] for item in body["items"]] == [0, 1]
+    assert body["items"][0]["status"] == "APPROVED"
+    assert body["items"][1]["status"] == "NEEDS_REVIEW"
 
 
 @pytest.mark.anyio
@@ -549,8 +624,8 @@ async def test_batch_one_invalid_item_does_not_block_valid_items() -> None:
     assert body["summary"]["passed"] == 2
     assert body["summary"]["needs_review"] == 1
     assert body["summary"]["total"] == 3
-    assert body["results"][1]["status"] == "NEEDS_REVIEW"
-    assert body["results"][1]["errors"]["producer"] == "This field cannot be empty."
+    assert body["items"][1]["status"] == "NEEDS_REVIEW"
+    assert body["items"][1]["errors"]["producer"] == "This field cannot be empty."
     assert mock.calls == 2
 
 
@@ -572,7 +647,7 @@ async def test_batch_item_unsupported_file_type_is_isolated() -> None:
     assert response_status(response) == 200
     assert body["summary"]["passed"] == 2
     assert body["summary"]["needs_review"] == 1
-    assert body["results"][1]["errors"]["image"] == "Unsupported file type."
+    assert body["items"][1]["errors"]["image"] == "Unsupported file type."
     assert mock.calls == 2
 
 
@@ -587,7 +662,7 @@ async def test_batch_item_vision_exception_is_isolated() -> None:
     assert body["summary"]["passed"] == 0
     assert body["summary"]["needs_review"] == 2
     assert body["summary"]["total"] == 2
-    assert body["results"][0]["errors"]["server"] == "Verification failed for this label."
+    assert body["items"][0]["errors"]["server"] == "Verification failed for this label."
     assert "provider boom" not in str(body)
 
 

@@ -36,6 +36,7 @@ class VerifyResponse(BaseModel):
 
     verification: VerificationResult
     latency_ms: int
+    vision_extraction_failed: bool = False
     extracted_label: ExtractedLabel
     timings: dict[str, int | str | bool | None] = Field(default_factory=dict)
 
@@ -44,46 +45,45 @@ class BatchSummary(BaseModel):
     """Aggregate status for a batch verification request.
 
     Inputs:
-        Counts of approved labels, labels needing review, total labels, and
-        total request latency.
+        Counts of approved labels, labels needing review, and total labels.
 
     Outputs:
-        The `summary` object inside `BatchVerifyResponse`.
+        The `summary` object inside `BatchResult`.
     """
 
     passed: int
     needs_review: int
     total: int
-    latency_ms: int
 
 
 class BatchItemResult(BaseModel):
     """Per-label result inside a batch response.
 
     Inputs:
-        The label index, original filename, pass/review status, optional
+        The label index, original filename, approved/review status, optional
         verification/extraction objects, latency/timing metadata, and any
         item-specific validation errors.
 
     Outputs:
-        One entry in `BatchVerifyResponse.results`.
+        One entry in `BatchResult.items`.
     """
 
     index: int
     filename: str | None
-    status: Literal["PASS", "NEEDS_REVIEW"]
+    status: Literal["APPROVED", "NEEDS_REVIEW"]
     verification: VerificationResult | None = None
     extracted_label: ExtractedLabel | None = None
+    vision_extraction_failed: bool = False
     latency_ms: int
     timings: dict[str, int | str | bool | None] = Field(default_factory=dict)
     errors: dict[str, str]
 
 
-class BatchVerifyResponse(BaseModel):
+class BatchResult(BaseModel):
     """Successful batch verification response.
 
     Inputs:
-        `summary` gives aggregate counts and `results` contains one
+        `summary` gives aggregate counts and `items` contains one
         `BatchItemResult` per uploaded image/application-data pair.
 
     Outputs:
@@ -91,4 +91,4 @@ class BatchVerifyResponse(BaseModel):
     """
 
     summary: BatchSummary
-    results: list[BatchItemResult]
+    items: list[BatchItemResult]
