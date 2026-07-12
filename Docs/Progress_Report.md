@@ -35,7 +35,7 @@ Follow-up hardening pass completed:
 Live app:
 
 ```text
-https://ttb-label-verification-production-b67a.up.railway.app
+https://ttb-label-verification-production-00ed.up.railway.app
 ```
 
 Latest verified live behavior:
@@ -157,7 +157,7 @@ e3f383e2-eb76-4ef5-8eff-7e332f6b4430
 Public domain:
 
 ```text
-https://ttb-label-verification-production-b67a.up.railway.app
+https://ttb-label-verification-production-00ed.up.railway.app
 ```
 
 Railway status after deploy:
@@ -214,8 +214,8 @@ npx -y @railway/cli domain list --json
 Live verification:
 
 ```bash
-curl -sS -i https://ttb-label-verification-production-b67a.up.railway.app/health
-curl -sS -i https://ttb-label-verification-production-b67a.up.railway.app/
+curl -sS -i https://ttb-label-verification-production-00ed.up.railway.app/health
+curl -sS -i https://ttb-label-verification-production-00ed.up.railway.app/
 ```
 
 Expected `/health` response:

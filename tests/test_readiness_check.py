@@ -1,6 +1,8 @@
 import json
 import time
+from io import BytesIO
 from pathlib import Path
+from urllib.error import HTTPError
 
 from app.vision.client import VisionConfigurationError
 from scripts import readiness_check
@@ -24,6 +26,26 @@ def test_readiness_failure_includes_exception_type_and_message() -> None:
 
     assert result["error"] == "VisionConfigurationError"
     assert result["message"] == "Configured VISION_MODEL 'bad-model' was not found."
+
+
+def test_readiness_failure_includes_http_error_response_body() -> None:
+    body = {
+        "message": "Please provide an image and all required label fields.",
+        "errors": {"image": "Image file is required."},
+    }
+    error = HTTPError(
+        url="http://testserver/verify",
+        code=400,
+        msg="Bad Request",
+        hdrs={},
+        fp=BytesIO(json.dumps(body).encode("utf-8")),
+    )
+
+    result = readiness_check.failure("POST http://testserver/verify", time.perf_counter(), error)
+
+    assert result["status"] == 400
+    assert result["error"] == "HTTPError"
+    assert result["response_body"] == body
 
 
 def test_check_model_failure_includes_missing_model_message(monkeypatch) -> None:

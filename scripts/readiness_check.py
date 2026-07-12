@@ -265,7 +265,7 @@ def failure(name: str, start: float, exc: Exception) -> dict[str, Any]:
         A JSON-serializable dictionary with failure status, latency, and error
         type.
     """
-    return {
+    result: dict[str, Any] = {
         "name": name,
         "ok": False,
         "status": getattr(exc, "code", None),
@@ -273,6 +273,21 @@ def failure(name: str, start: float, exc: Exception) -> dict[str, Any]:
         "error": type(exc).__name__,
         "message": str(exc),
     }
+    if isinstance(exc, HTTPError):
+        result["response_body"] = http_error_body(exc)
+    return result
+
+
+def http_error_body(exc: HTTPError) -> dict[str, Any] | str | None:
+    """Read and parse the body from an HTTP error response."""
+    body = exc.read()
+    if not body:
+        return None
+    text = body.decode("utf-8", errors="replace")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
 
 
 def elapsed_ms(start: float) -> int:

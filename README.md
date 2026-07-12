@@ -8,8 +8,8 @@ The app is intentionally stateless. It has no database and does not submit anyth
 
 ## Live Demo
 
-- App: https://ttb-label-verification-production-b67a.up.railway.app/
-- Health check: https://ttb-label-verification-production-b67a.up.railway.app/health
+- App: https://ttb-label-verification-production-00ed.up.railway.app/
+- Health check: https://ttb-label-verification-production-00ed.up.railway.app/health
 - Last live verification: June 22, 2026
 - Single-label target: under 5 seconds
 - Measured single-label p50 latency: pending live re-measurement against 5-second target
