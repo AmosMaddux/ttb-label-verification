@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
-from app.api.models import BatchItemResult, BatchSummary, BatchVerifyResponse, ErrorResponse, VerifyResponse
+from app.api.models import BatchItemResult, BatchResult, BatchSummary, ErrorResponse, VerifyResponse
 from app.verification.comparisons import verify_label
 from app.verification.models import ApplicationData, ExtractedLabel
 from app.vision.service import VisionService
@@ -455,7 +455,7 @@ async def verify_endpoint(
 
 @router.post(
     "/verify/batch",
-    response_model=BatchVerifyResponse,
+    response_model=BatchResult,
     responses={
         400: {"model": ErrorResponse},
         413: {"model": ErrorResponse},
@@ -466,7 +466,7 @@ async def verify_batch_endpoint(
     vision_service_provider: Annotated[VisionServiceProvider, Depends(get_vision_service_provider)],
     images: Annotated[list[UploadFile] | None, File()] = None,
     items_json: OptionalForm = None,
-) -> BatchVerifyResponse | JSONResponse:
+) -> BatchResult | JSONResponse:
     """Handle multipart batch verification for one to five labels.
 
     Inputs:
@@ -474,7 +474,7 @@ async def verify_batch_endpoint(
         expected field dictionaries whose order must match `images`.
 
     Outputs:
-        `BatchVerifyResponse` with aggregate counts and per-label results, or an
+        `BatchResult` with aggregate counts and per-label results, or an
         `ErrorResponse` JSON body for invalid request shape, size limits, or
         unexpected server errors.
     """
@@ -581,12 +581,11 @@ async def verify_batch_endpoint(
         len(results),
     )
 
-    return BatchVerifyResponse(
+    return BatchResult(
         summary=BatchSummary(
             passed=passed,
             needs_review=needs_review,
             total=len(results),
-            latency_ms=latency,
         ),
-        results=results,
+        items=results,
     )

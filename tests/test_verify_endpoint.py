@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import ValidationError
 
-from app.api.models import BatchItemResult, BatchVerifyResponse, VerifyResponse
+from app.api.models import BatchItemResult, BatchResult, VerifyResponse
 from app.api.verify import verify_batch_endpoint, verify_endpoint
 from app.verification.models import ExtractedLabel
 
@@ -139,14 +139,14 @@ def provider_for(mock: MockVisionService):
     return lambda: mock
 
 
-def response_body(response: VerifyResponse | BatchVerifyResponse | JSONResponse) -> dict:
-    if isinstance(response, VerifyResponse | BatchVerifyResponse):
+def response_body(response: VerifyResponse | BatchResult | JSONResponse) -> dict:
+    if isinstance(response, VerifyResponse | BatchResult):
         return response.model_dump(mode="json")
     return json.loads(response.body)
 
 
-def response_status(response: VerifyResponse | BatchVerifyResponse | JSONResponse) -> int:
-    if isinstance(response, VerifyResponse | BatchVerifyResponse):
+def response_status(response: VerifyResponse | BatchResult | JSONResponse) -> int:
+    if isinstance(response, VerifyResponse | BatchResult):
         return 200
     return response.status_code
 
@@ -176,7 +176,7 @@ async def call_batch_verify(
     *,
     items: list[dict[str, str | None]] | None = None,
     images: list[MockUploadFile] | None = None,
-) -> BatchVerifyResponse | JSONResponse:
+) -> BatchResult | JSONResponse:
     values = items if items is not None else [form_data()]
     upload_images = images if images is not None else [upload_file() for _ in values]
     return await verify_batch_endpoint(
@@ -503,11 +503,11 @@ async def test_batch_size_one_returns_summary_and_result() -> None:
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 0
     assert body["summary"]["total"] == 1
-    assert body["results"][0]["index"] == 0
-    assert body["results"][0]["status"] == "APPROVED"
-    assert body["results"][0]["verification"]["overall_verdict"] == "APPROVED"
-    assert body["results"][0]["timings"]["image_read_ms"] >= 0
-    assert body["results"][0]["timings"]["compare_ms"] >= 0
+    assert body["items"][0]["index"] == 0
+    assert body["items"][0]["status"] == "APPROVED"
+    assert body["items"][0]["verification"]["overall_verdict"] == "APPROVED"
+    assert body["items"][0]["timings"]["image_read_ms"] >= 0
+    assert body["items"][0]["timings"]["compare_ms"] >= 0
     assert mock.calls == 1
 
 
@@ -527,9 +527,9 @@ async def test_batch_mixed_results_have_correct_summary_counts() -> None:
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 1
     assert body["summary"]["total"] == 2
-    assert [item["index"] for item in body["results"]] == [0, 1]
-    assert body["results"][0]["status"] == "APPROVED"
-    assert body["results"][1]["status"] == "NEEDS_REVIEW"
+    assert [item["index"] for item in body["items"]] == [0, 1]
+    assert body["items"][0]["status"] == "APPROVED"
+    assert body["items"][1]["status"] == "NEEDS_REVIEW"
 
 
 @pytest.mark.anyio
@@ -549,8 +549,8 @@ async def test_batch_one_invalid_item_does_not_block_valid_items() -> None:
     assert body["summary"]["passed"] == 2
     assert body["summary"]["needs_review"] == 1
     assert body["summary"]["total"] == 3
-    assert body["results"][1]["status"] == "NEEDS_REVIEW"
-    assert body["results"][1]["errors"]["producer"] == "This field cannot be empty."
+    assert body["items"][1]["status"] == "NEEDS_REVIEW"
+    assert body["items"][1]["errors"]["producer"] == "This field cannot be empty."
     assert mock.calls == 2
 
 
@@ -572,7 +572,7 @@ async def test_batch_item_unsupported_file_type_is_isolated() -> None:
     assert response_status(response) == 200
     assert body["summary"]["passed"] == 2
     assert body["summary"]["needs_review"] == 1
-    assert body["results"][1]["errors"]["image"] == "Unsupported file type."
+    assert body["items"][1]["errors"]["image"] == "Unsupported file type."
     assert mock.calls == 2
 
 
@@ -587,7 +587,7 @@ async def test_batch_item_vision_exception_is_isolated() -> None:
     assert body["summary"]["passed"] == 0
     assert body["summary"]["needs_review"] == 2
     assert body["summary"]["total"] == 2
-    assert body["results"][0]["errors"]["server"] == "Verification failed for this label."
+    assert body["items"][0]["errors"]["server"] == "Verification failed for this label."
     assert "provider boom" not in str(body)
 
 

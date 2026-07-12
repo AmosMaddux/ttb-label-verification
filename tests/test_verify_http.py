@@ -268,7 +268,7 @@ async def test_batch_real_multipart_size_one_success() -> None:
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 0
     assert body["summary"]["total"] == 1
-    assert body["results"][0]["status"] == "APPROVED"
+    assert body["items"][0]["status"] == "APPROVED"
     assert mock.calls == 1
 
 
@@ -292,7 +292,7 @@ async def test_batch_real_multipart_mixed_summary_counts() -> None:
     body = response.json()
     assert body["summary"]["passed"] == 1
     assert body["summary"]["needs_review"] == 1
-    assert [item["index"] for item in body["results"]] == [0, 1]
+    assert [item["index"] for item in body["items"]] == [0, 1]
     assert mock.calls == 2
 
 

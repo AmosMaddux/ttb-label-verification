@@ -75,6 +75,14 @@ function valueOrDash(value) {
 }
 
 /**
+ * Calculate client-observed elapsed request time for result display.
+ * @returns {number} Elapsed milliseconds since submit started.
+ */
+function elapsedRequestMs() {
+  return progressStartedAt ? Math.max(0, Date.now() - progressStartedAt) : 0;
+}
+
+/**
  * Get all current label cards in display order.
  * @returns {HTMLElement[]} Label-card elements currently in the form.
  */
@@ -148,10 +156,9 @@ function renderExtracted(extracted) {
 /**
  * Render the compact result view used when exactly one label was checked.
  * @param {object} item Single batch item returned by the API.
- * @param {object} summary Batch summary returned by the API.
  * @returns {void}
  */
-function renderSingleResult(item, summary) {
+function renderSingleResult(item) {
   resultPanel.hidden = false;
   batchSummary.hidden = true;
   batchResults.innerHTML = "";
@@ -160,7 +167,7 @@ function renderSingleResult(item, summary) {
   const verdict = item.verification?.overall_verdict || item.status;
   verdictBadge.textContent = verdict === "APPROVED" ? "APPROVED" : "NEEDS REVIEW";
   verdictBadge.className = `verdict-badge ${verdict === "APPROVED" ? "pass" : "review"}`;
-  latency.textContent = `Checked in ${(summary.latency_ms / 1000).toFixed(1)} seconds`;
+  latency.textContent = `Checked in ${(elapsedRequestMs() / 1000).toFixed(1)} seconds`;
 
   const firstCard = labelCards()[0];
   if (firstCard && item.verification) {
@@ -182,14 +189,14 @@ function renderBatchResult(body) {
 
   verdictBadge.textContent = body.summary.needs_review ? "NEEDS REVIEW" : "APPROVED";
   verdictBadge.className = `verdict-badge ${body.summary.needs_review ? "review" : "pass"}`;
-  latency.textContent = `Checked in ${(body.summary.latency_ms / 1000).toFixed(1)} seconds`;
+  latency.textContent = `Checked in ${(elapsedRequestMs() / 1000).toFixed(1)} seconds`;
   batchSummary.innerHTML = `
     <div><strong>${body.summary.passed}</strong><span>approved</span></div>
     <div><strong>${body.summary.needs_review}</strong><span>needs review</span></div>
     <div><strong>${body.summary.total}</strong><span>total</span></div>
   `;
 
-  body.results.forEach((item) => {
+  body.items.forEach((item) => {
     const details = document.createElement("details");
     details.className = `batch-result ${item.status === "APPROVED" ? "approved" : "review"}`;
 
@@ -254,12 +261,12 @@ function renderBatchResult(body) {
  * @returns {void}
  */
 function renderResult(body) {
-  if (body.results.length === 1) {
-    renderSingleResult(body.results[0], body.summary);
+  if (body.items.length === 1) {
+    renderSingleResult(body.items[0]);
     return;
   }
   labelCards().forEach((card, index) => {
-    const item = body.results[index];
+    const item = body.items[index];
     if (item?.verification) {
       renderFields(card, item.verification.results);
     }

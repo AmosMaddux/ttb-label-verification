@@ -44,17 +44,15 @@ class BatchSummary(BaseModel):
     """Aggregate status for a batch verification request.
 
     Inputs:
-        Counts of approved labels, labels needing review, total labels, and
-        total request latency.
+        Counts of approved labels, labels needing review, and total labels.
 
     Outputs:
-        The `summary` object inside `BatchVerifyResponse`.
+        The `summary` object inside `BatchResult`.
     """
 
     passed: int
     needs_review: int
     total: int
-    latency_ms: int
 
 
 class BatchItemResult(BaseModel):
@@ -66,7 +64,7 @@ class BatchItemResult(BaseModel):
         item-specific validation errors.
 
     Outputs:
-        One entry in `BatchVerifyResponse.results`.
+        One entry in `BatchResult.items`.
     """
 
     index: int
@@ -79,11 +77,11 @@ class BatchItemResult(BaseModel):
     errors: dict[str, str]
 
 
-class BatchVerifyResponse(BaseModel):
+class BatchResult(BaseModel):
     """Successful batch verification response.
 
     Inputs:
-        `summary` gives aggregate counts and `results` contains one
+        `summary` gives aggregate counts and `items` contains one
         `BatchItemResult` per uploaded image/application-data pair.
 
     Outputs:
@@ -91,4 +89,4 @@ class BatchVerifyResponse(BaseModel):
     """
 
     summary: BatchSummary
-    results: list[BatchItemResult]
+    items: list[BatchItemResult]

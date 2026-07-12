@@ -11,8 +11,8 @@ const fields = {
 };
 
 const passResponse = {
-  summary: { passed: 1, needs_review: 0, total: 1, latency_ms: 1200 },
-  results: [
+  summary: { passed: 1, needs_review: 0, total: 1 },
+  items: [
     {
       index: 0,
       filename: "label.jpg",
@@ -48,11 +48,11 @@ const passResponse = {
 };
 
 const mixedBatchResponse = {
-  summary: { passed: 1, needs_review: 1, total: 2, latency_ms: 1800 },
-  results: [
-    passResponse.results[0],
+  summary: { passed: 1, needs_review: 1, total: 2 },
+  items: [
+    passResponse.items[0],
     {
-      ...passResponse.results[0],
+      ...passResponse.items[0],
       index: 1,
       filename: "label-2.jpg",
       status: "NEEDS_REVIEW",
