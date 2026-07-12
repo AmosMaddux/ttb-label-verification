@@ -95,6 +95,27 @@ The system separates AI extraction from deterministic verification:
 Batch requests process labels concurrently with per-item error isolation. One bad label does not
 fail the whole batch.
 
+## AI Workflow
+
+This proof of concept was built with a plan, review, execute cadence using Codex, followed by
+pull-request-style review loops. For each development step, the human owner described the goal,
+constraints, and acceptance criteria in detail, had Codex propose an implementation plan, reviewed
+that plan, then asked Codex to implement the approved scope with tests.
+
+The codebase is roughly 99% AI-generated, but with heavy human direction and review. The human
+work centered on clarifying requirements, shaping prompts, reviewing plans, checking code changes,
+and deciding whether the generated implementation matched the product goal: fast, simple label
+verification that a non-technical user can operate without instructions.
+
+A concrete human override was rejecting backward-compatible use of old field names after the API
+contract changed. Codex initially adjusted readiness behavior around legacy field names, but the
+human review corrected that direction so the final contract consistently uses the current field
+names, such as `class_type`, rather than preserving stale names. The same review direction applied
+to tests: new tests were not allowed to keep asserting old field names. When deployed readiness
+checks failed because the running environment still expected stale variables, the fix was to
+redeploy with the current environment/configuration contract rather than reintroduce legacy
+request fields.
+
 ## Tools And Libraries
 
 - Python 3.12
