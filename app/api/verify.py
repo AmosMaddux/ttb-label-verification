@@ -12,6 +12,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from functools import lru_cache
 from io import BytesIO
 from typing import Annotated
 
@@ -46,17 +47,32 @@ OptionalForm = Annotated[str | None, Form()]
 VisionServiceProvider = Callable[[], VisionService]
 
 
-def get_vision_service_provider() -> VisionServiceProvider:
-    """Return the factory used to create a vision service for each request.
+@lru_cache(maxsize=1)
+def _get_cached_vision_service() -> VisionService:
+    """Build the real vision service once per process.
 
     Inputs:
         None.
 
     Outputs:
-        A callable that returns `VisionService`. Tests override this dependency
-        with fake services so endpoint tests never require a real API key.
+        The process-wide `VisionService` instance used by the default API
+        dependency.
     """
-    return VisionService.from_env
+    return VisionService.from_env()
+
+
+def get_vision_service_provider() -> VisionServiceProvider:
+    """Return the provider used to access the process-wide vision service.
+
+    Inputs:
+        None.
+
+    Outputs:
+        A callable that returns the cached `VisionService`. Tests override this
+        dependency with fake services so endpoint tests never require a real API
+        key.
+    """
+    return _get_cached_vision_service
 
 
 def _error_response(status_code: int, message: str, errors: dict[str, str]) -> JSONResponse:

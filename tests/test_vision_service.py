@@ -1,3 +1,4 @@
+import importlib
 import json
 from io import BytesIO
 from pathlib import Path
@@ -8,6 +9,8 @@ from PIL import Image, ImageDraw, ImageFilter
 from app.verification.models import ExtractedLabel
 from app.vision.client import VisionClientResult, VisionConfigurationError
 from app.vision.fakes import FakeVisionClient
+import app.vision.preprocessing as preprocessing
+import app.vision.service as vision_service_module
 from app.vision.preprocessing import prepare_image
 from app.vision.service import (
     EXTRACTION_PROMPT,
@@ -87,6 +90,52 @@ def test_preprocessing_downscales_large_images_and_outputs_jpeg_rgb() -> None:
     reopened = Image.open(BytesIO(prepared.data))
     assert reopened.format == "JPEG"
     assert reopened.mode == "RGB"
+
+
+def test_preprocessing_uses_default_env_values_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MAX_LONG_EDGE", raising=False)
+    monkeypatch.delenv("JPEG_QUALITY", raising=False)
+    importlib.reload(preprocessing)
+    try:
+        prepared = preprocessing.prepare_image(image_bytes(size=(3000, 1200)))
+
+        assert preprocessing.MAX_LONG_EDGE == 1400
+        assert preprocessing.JPEG_QUALITY == 76
+        assert prepared.width == 1400
+        assert prepared.height == 560
+    finally:
+        importlib.reload(preprocessing)
+        importlib.reload(vision_service_module)
+
+
+def test_preprocessing_honors_max_long_edge_env_on_import(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MAX_LONG_EDGE", "800")
+    importlib.reload(preprocessing)
+    try:
+        prepared = preprocessing.prepare_image(image_bytes(size=(3000, 1200)))
+
+        assert preprocessing.MAX_LONG_EDGE == 800
+        assert prepared.width == 800
+        assert prepared.height == 320
+    finally:
+        monkeypatch.delenv("MAX_LONG_EDGE", raising=False)
+        importlib.reload(preprocessing)
+        importlib.reload(vision_service_module)
+
+
+@pytest.mark.parametrize("env_var", ["MAX_LONG_EDGE", "JPEG_QUALITY"])
+def test_preprocessing_rejects_invalid_integer_env(
+    monkeypatch: pytest.MonkeyPatch,
+    env_var: str,
+) -> None:
+    monkeypatch.setenv(env_var, "large")
+    try:
+        with pytest.raises(VisionConfigurationError, match=env_var):
+            importlib.reload(preprocessing)
+    finally:
+        monkeypatch.delenv(env_var, raising=False)
+        importlib.reload(preprocessing)
+        importlib.reload(vision_service_module)
 
 
 def test_preprocessing_does_not_enlarge_small_images() -> None:

@@ -7,15 +7,24 @@ single-label verification request using environment-provided fields.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import mimetypes
 import os
+import sys
 import time
 import uuid
 from pathlib import Path
 from typing import Any
 from urllib import request
 from urllib.error import HTTPError, URLError
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from app.vision.model_check import validate_configured_model_available
 
 
 REQUIRED_FIELDS = [
@@ -51,6 +60,11 @@ def main() -> int:
         action="store_true",
         help="Also POST /verify using local image and fields from env vars.",
     )
+    parser.add_argument(
+        "--verify-model",
+        action="store_true",
+        help="Also confirm VISION_MODEL appears in OpenAI's live models list.",
+    )
     args = parser.parse_args()
 
     base_url = args.base_url.rstrip("/")
@@ -61,6 +75,8 @@ def main() -> int:
 
     if args.verify:
         checks.append(check_verify(f"{base_url}/verify"))
+    if args.verify_model:
+        checks.append(check_model())
 
     print(json.dumps({"base_url": base_url, "checks": checks}, indent=2))
     return 0 if all(check["ok"] for check in checks) else 1
@@ -147,6 +163,22 @@ def check_verify(url: str) -> dict[str, Any]:
         return failure(f"POST {url}", start, exc)
 
 
+def check_model() -> dict[str, Any]:
+    """Verify `VISION_MODEL` against OpenAI's live models-list endpoint."""
+    start = time.perf_counter()
+    try:
+        model = asyncio.run(validate_configured_model_available())
+        return {
+            "name": "OpenAI VISION_MODEL",
+            "ok": True,
+            "status": None,
+            "latency_ms": elapsed_ms(start),
+            "model": model,
+        }
+    except Exception as exc:
+        return failure("OpenAI VISION_MODEL", start, exc)
+
+
 def multipart_body(*, fields: dict[str, str], image_path: Path) -> tuple[bytes, str]:
     """Build a multipart/form-data body for the readiness verification request.
 
@@ -201,6 +233,7 @@ def failure(name: str, start: float, exc: Exception) -> dict[str, Any]:
         "status": getattr(exc, "code", None),
         "latency_ms": elapsed_ms(start),
         "error": type(exc).__name__,
+        "message": str(exc),
     }
 
 

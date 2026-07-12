@@ -10,9 +10,11 @@ from io import BytesIO
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from app.vision.config import env_int
 
-MAX_LONG_EDGE = 1400
-JPEG_QUALITY = 76
+
+MAX_LONG_EDGE = env_int("MAX_LONG_EDGE", 1400)
+JPEG_QUALITY = env_int("JPEG_QUALITY", 76)
 
 
 class ImagePreprocessingError(ValueError):
