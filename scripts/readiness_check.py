@@ -20,7 +20,7 @@ from urllib.error import HTTPError, URLError
 
 REQUIRED_FIELDS = [
     "brand_name",
-    "product_class",
+    "class_type",
     "producer",
     "country_of_origin",
     "abv",
@@ -140,7 +140,7 @@ def check_verify(url: str) -> dict[str, Any]:
             "ok": 200 <= response.status < 300,
             "status": response.status,
             "latency_ms": elapsed_ms(start),
-            "verdict": payload.get("verification", {}).get("verdict"),
+            "overall_verdict": payload.get("verification", {}).get("overall_verdict"),
             "api_latency_ms": payload.get("latency_ms"),
         }
     except (OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
