@@ -9,8 +9,9 @@ from PIL import Image
 from pydantic import ValidationError
 
 from app.api.models import BatchItemResult, BatchResult, VerifyResponse
-from app.api.verify import verify_batch_endpoint, verify_endpoint
+from app.api.verify import _get_cached_vision_service, get_vision_service_provider, verify_batch_endpoint, verify_endpoint
 from app.verification.models import ExtractedLabel
+from app.vision.service import VisionService
 from app.vision.service import VisionExtractionResult, null_extracted_label
 
 
@@ -165,6 +166,28 @@ def response_status(response: VerifyResponse | BatchResult | JSONResponse) -> in
     if isinstance(response, VerifyResponse | BatchResult):
         return 200
     return response.status_code
+
+
+def test_default_vision_service_provider_reuses_cached_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+    service = VisionService(client=MockVisionService())
+
+    def fake_from_env() -> VisionService:
+        nonlocal calls
+        calls += 1
+        return service
+
+    _get_cached_vision_service.cache_clear()
+    monkeypatch.setattr(VisionService, "from_env", fake_from_env)
+    try:
+        first_provider = get_vision_service_provider()
+        second_provider = get_vision_service_provider()
+
+        assert first_provider() is service
+        assert second_provider() is service
+        assert calls == 1
+    finally:
+        _get_cached_vision_service.cache_clear()
 
 
 async def call_verify(
