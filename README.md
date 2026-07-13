@@ -138,8 +138,9 @@ run the same validation before deployment.
 
 This proof of concept uses `gpt-5.4-nano` because live testing showed it is consistently fast
 enough for the under-5-second single-label requirement. The tradeoff is slightly lower text
-extraction accuracy on some label text, such as reading `ROCK TOWN` as `ROCKITOWN`, so deterministic
-verification still treats close-but-wrong extractions as fields that may need review.
+extraction accuracy on some label text, such as reading separate words as a single joined word,
+so deterministic verification still treats close-but-wrong extractions as fields that may need
+review.
 
 The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
 configured model name in sync across these five locations: `app/vision/service.py:24`
@@ -575,9 +576,8 @@ The UI is designed for a non-technical user to complete a check without instruct
 
 - Vision extraction quality depends on image clarity, glare, cropping, and label layout.
 - Poor images may return partial extracted data and produce `NEEDS REVIEW`.
-- The fast `gpt-5.4-nano` model can occasionally invent plausible nearby brand or producer names
-  that are not printed on the bottle, such as returning `Barefoot Wine Company` instead of
-  `Barefoot Wines`, or `Sagamore Distillery` instead of `Sagamore Reserve`.
+- The fast `gpt-5.4-nano` model can occasionally misread or join visible label text, especially on
+  stylized, low-contrast, cropped, or glare-heavy photos.
 - Government-warning matching is intentionally strict and may fail for small OCR differences.
 - Railway free-tier behavior may add cold-start latency.
 - The app does not replace legal review.
@@ -585,12 +585,12 @@ The UI is designed for a non-technical user to complete a check without instruct
 
 ## Potential Fixes
 
-- Add prompt language that explicitly tells the vision model not to infer, expand, or normalize
-  brand and producer names beyond text visible on the label.
-- Use extracted `raw_text` as a grounding check before accepting brand or producer values that do
-  not appear in the transcription.
-- Add real-label regression fixtures for observed hallucinations such as `Barefoot Wine Company`
-  and `Sagamore Distillery`, then tune prompts or comparison handling against those examples.
+- Add more real-label regression fixtures for OCR-style misspellings, joined words, glare, unusual
+  typography, and labels with several producer/importer statements.
+- Explore a narrowly scoped second-pass correction step that can repair obvious OCR spacing errors
+  without changing the visible label wording or using outside brand knowledge.
+- Tune image preprocessing against real bottle photos to improve text readability while preserving
+  the under-5-second latency target.
 
 ## Secret Handling
 
