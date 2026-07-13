@@ -328,6 +328,53 @@ def _token_sort_ratio(application: str, extracted: str) -> float:
     return float(fuzz.token_sort_ratio(application, extracted))
 
 
+def _raw_text_supports_value(raw_text: str | None, value: str | None) -> bool:
+    """Check whether a structured value is visibly supported by raw label text.
+
+    Inputs:
+        Full transcribed label text and one extracted structured field value.
+
+    Outputs:
+        `True` when no raw text is available, or when the value's normalized
+        tokens appear together in the raw text after light punctuation/spacing
+        cleanup. Token-sort matching allows harmless word-order differences
+        without allowing extra unsupported words.
+    """
+    if raw_text is None or value is None:
+        return True
+
+    normalized_value = _normalize_fuzzy(value)
+    normalized_raw_text = _normalize_fuzzy(raw_text)
+    value_tokens = normalized_value.split()
+    raw_tokens = normalized_raw_text.split()
+    if not value_tokens or not raw_tokens or len(value_tokens) > len(raw_tokens):
+        return False
+
+    if normalized_value in normalized_raw_text:
+        return True
+
+    value_window = " ".join(value_tokens)
+    window_size = len(value_tokens)
+    for index in range(0, len(raw_tokens) - window_size + 1):
+        raw_window = " ".join(raw_tokens[index : index + window_size])
+        if _token_sort_ratio(value_window, raw_window) == 100.0:
+            return True
+    return False
+
+
+def _apply_raw_text_grounding(result: FieldResult, raw_text: str | None) -> FieldResult:
+    """Fail a fuzzy text result when its found value is not supported by raw text."""
+    if result.found is None or _raw_text_supports_value(raw_text, result.found):
+        return result
+
+    return result.model_copy(
+        update={
+            "status": "FAIL",
+            "message": "Extracted value is not supported by the transcribed label text.",
+        }
+    )
+
+
 def _missing_result(field: str, application: str, match_type: str) -> FieldResult:
     """Build the standard failed result for a missing extracted value.
 
@@ -380,16 +427,21 @@ def _compare_fuzzy(field: str, application: str, extracted: str | None) -> Field
     )
 
 
-def compare_brand_name(application: str, extracted: str | None) -> FieldResult:
+def compare_brand_name(
+    application: str,
+    extracted: str | None,
+    raw_text: str | None = None,
+) -> FieldResult:
     """Compare the brand name field.
 
     Inputs:
-        Expected brand text and optional extracted brand text.
+        Expected brand text, optional extracted brand text, and optional raw
+        transcribed label text used to reject unsupported hallucinated values.
 
     Outputs:
         A fuzzy `FieldResult` for `brand_name`.
     """
-    return _compare_fuzzy("brand_name", application, extracted)
+    return _apply_raw_text_grounding(_compare_fuzzy("brand_name", application, extracted), raw_text)
 
 
 def compare_product_class(application: str, extracted: str | None) -> FieldResult:
@@ -404,11 +456,17 @@ def compare_product_class(application: str, extracted: str | None) -> FieldResul
     return _compare_fuzzy("class_type", application, extracted)
 
 
-def compare_producer(application: str, extracted: str | None) -> FieldResult:
+def compare_producer(
+    application: str,
+    extracted: str | None,
+    raw_text: str | None = None,
+) -> FieldResult:
     """Compare producer names after producer-specific cleanup.
 
     Inputs:
-        Expected producer text and optional extracted producer text.
+        Expected producer text, optional extracted producer text, and optional
+        raw transcribed label text used to reject unsupported hallucinated
+        values.
 
     Outputs:
         A `FieldResult` using the better of token-sort and token-set RapidFuzz
@@ -426,7 +484,7 @@ def compare_producer(application: str, extracted: str | None) -> FieldResult:
     )
     status = "PASS" if score >= FUZZY_THRESHOLD else "FAIL"
 
-    return FieldResult(
+    result = FieldResult(
         field="producer",
         status=status,
         expected=application,
@@ -437,6 +495,7 @@ def compare_producer(application: str, extracted: str | None) -> FieldResult:
         normalized_extracted_value=normalized_extracted,
         message="Fuzzy match passed." if status == "PASS" else "Fuzzy match failed.",
     )
+    return _apply_raw_text_grounding(result, raw_text)
 
 
 def compare_country_of_origin(application: str, extracted: str | None) -> FieldResult:
@@ -657,9 +716,9 @@ def verify_label(application: ApplicationData, extracted: ExtractedLabel) -> Ver
         `APPROVED` only when every field passes; otherwise `NEEDS_REVIEW`.
     """
     fields = [
-        compare_brand_name(application.brand_name, extracted.brand_name),
+        compare_brand_name(application.brand_name, extracted.brand_name, extracted.raw_text),
         compare_product_class(application.class_type, extracted.class_type),
-        compare_producer(application.producer, extracted.producer),
+        compare_producer(application.producer, extracted.producer, extracted.raw_text),
         compare_country_of_origin(application.country_of_origin, extracted.country_of_origin),
         compare_abv(application.abv, extracted.abv),
         compare_net_contents(application.net_contents, extracted.net_contents),

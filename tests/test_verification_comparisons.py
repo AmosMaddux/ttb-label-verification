@@ -125,6 +125,35 @@ def test_brand_materially_different_value_fails() -> None:
     assert result.status == "FAIL"
 
 
+def test_brand_value_unsupported_by_raw_text_fails_even_when_fuzzy_match_passes() -> None:
+    result = compare_brand_name(
+        "Acme Reserve",
+        "Acme Reserves",
+        raw_text="ACME RESERVE\nRed Wine\n750 mL",
+    )
+
+    assert result.status == "FAIL"
+    assert result.score is not None
+    assert result.score >= 90.0
+    assert result.message == "Extracted value is not supported by the transcribed label text."
+
+
+def test_brand_value_supported_by_raw_text_still_passes_with_word_order_difference() -> None:
+    result = compare_brand_name(
+        "Reserve Acme",
+        "Acme Reserve",
+        raw_text="ACME RESERVE\nRed Wine\n750 mL",
+    )
+
+    assert result.status == "PASS"
+
+
+def test_brand_raw_text_grounding_is_skipped_when_raw_text_is_unavailable() -> None:
+    result = compare_brand_name("Acme Reserve", "Acme Reserves", raw_text=None)
+
+    assert result.status == "PASS"
+
+
 def test_class_type_fuzzy_equivalent_passes() -> None:
     result = compare_product_class("Cabernet Sauvignon", "cabernet-sauvignon")
 
@@ -175,6 +204,45 @@ def test_producer_unrelated_name_fails() -> None:
     result = compare_producer("Acme Winery LLC", "Different Cellars")
 
     assert result.status == "FAIL"
+
+
+def test_producer_value_unsupported_by_raw_text_fails_even_when_fuzzy_match_passes() -> None:
+    result = compare_producer(
+        "Acme Cellars",
+        "Acme Cellars Company",
+        raw_text="Produced by ACME CELLARS, California",
+    )
+
+    assert result.status == "FAIL"
+    assert result.score is not None
+    assert result.score >= 90.0
+    assert result.message == "Extracted value is not supported by the transcribed label text."
+
+
+def test_producer_value_supported_by_raw_text_still_passes() -> None:
+    result = compare_producer(
+        "Acme Cellars",
+        "Acme Cellars",
+        raw_text="Produced by ACME CELLARS, California",
+    )
+
+    assert result.status == "PASS"
+
+
+def test_verify_label_applies_raw_text_grounding_to_brand_and_producer() -> None:
+    result = verify_label(
+        make_application(brand_name="Acme Reserve", producer="Acme Cellars"),
+        make_extracted(
+            brand_name="Acme Reserves",
+            producer="Acme Cellars Company",
+            raw_text="ACME RESERVE\nProduced by ACME CELLARS, California",
+        ),
+    )
+
+    assert result.overall_verdict == "NEEDS_REVIEW"
+    grounded_fields = {field.field: field for field in result.results}
+    assert grounded_fields["brand_name"].status == "FAIL"
+    assert grounded_fields["producer"].status == "FAIL"
 
 
 def test_fuzzy_score_exactly_at_threshold_passes(monkeypatch: pytest.MonkeyPatch) -> None:
