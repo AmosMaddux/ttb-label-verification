@@ -145,6 +145,15 @@ test("page starts with one completeable label card and plain labels", async ({ p
   await expect(page.locator("#submit-button")).toHaveText("Check Label");
 });
 
+test("selected label photo preview gets descriptive alt text", async ({ page }) => {
+  await page.goto("/");
+
+  const card = page.locator(".label-card").first();
+  await expect(card.locator(".image-preview")).toHaveAttribute("alt", "");
+  await setImage(card, "sample-label.jpg");
+  await expect(card.locator(".image-preview")).toHaveAttribute("alt", "Preview of sample-label.jpg");
+});
+
 test("cloned label cards keep accessible label associations unique", async ({ page }) => {
   await page.goto("/");
 

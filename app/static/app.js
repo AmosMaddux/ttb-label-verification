@@ -651,6 +651,7 @@ function addLabelCard() {
     if (!file) {
       fileName.textContent = "Choose label photo";
       imagePreview.removeAttribute("src");
+      imagePreview.alt = "";
       imagePreview.classList.remove("visible");
       updateSubmitState();
       return;
@@ -658,6 +659,7 @@ function addLabelCard() {
 
     fileName.textContent = file.name;
     imagePreview.src = URL.createObjectURL(file);
+    imagePreview.alt = `Preview of ${file.name}`;
     imagePreview.classList.add("visible");
     updateSubmitState();
   });
