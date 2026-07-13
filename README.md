@@ -135,17 +135,17 @@ request fields.
 Default vision model:
 
 ```text
-gpt-5.4-mini
+gpt-5.6-luna
 ```
 
-This exact model name was verified against the current OpenAI model list on July 12, 2026. The app
+This exact model name was verified against the current OpenAI model list on July 13, 2026. The app
 also performs a startup fail-fast model check, and `scripts/readiness_check.py --verify-model` can
 run the same validation before deployment.
 
 The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
 configured model name in sync across these five locations: `app/vision/service.py:24`
-(`DEFAULT_VISION_MODEL`), `README.md:138` (this model block), `README.md:174` (local `.env`
-example), `README.md:537` (Railway environment variables), and `.env.example:3`.
+(`DEFAULT_VISION_MODEL`), `README.md:138` (this model block), `README.md:183` (local `.env`
+example), `README.md:548` (Railway environment variables), and `.env.example:3`.
 
 ## Environment Variables
 
@@ -154,7 +154,7 @@ example), `README.md:537` (Railway environment variables), and `.env.example:3`.
 | `APP_ENV` | No | unset | Identifies the runtime environment. `test` skips the live startup model check. |
 | `OPENAI_API_KEY` | Yes for real extraction | unset | OpenAI API key used by the vision client and live model validation. |
 | `SKIP_MODEL_CHECK` | No | unset / false | Skips the live `VISION_MODEL` startup check when set to `1`, `true`, `yes`, or `on`. |
-| `VISION_MODEL` | No | `gpt-5.4-mini` | OpenAI model used for label extraction and startup validation. |
+| `VISION_MODEL` | No | `gpt-5.6-luna` | OpenAI model used for label extraction and startup validation. |
 | `VISION_TIMEOUT_S` | No | `4.0` | Timeout in seconds for OpenAI SDK clients, tuned for the 5-second single-label target. |
 | `MAX_LONG_EDGE` | No | `800` | Maximum long edge, in pixels, for preprocessed label images, tuned for the 5-second single-label target. |
 | `JPEG_QUALITY` | No | `55` | JPEG quality used when re-encoding preprocessed label images, tuned for the 5-second single-label target. |
@@ -180,7 +180,7 @@ Then set local-only values in `.env`:
 ```text
 APP_ENV=local
 OPENAI_API_KEY=<your local key>
-VISION_MODEL=gpt-5.4-mini
+VISION_MODEL=gpt-5.6-luna
 ```
 
 Real secret values must not be committed.
@@ -330,7 +330,7 @@ Successful response:
     "prepared_image_bytes": 128432,
     "prepared_image_width": 1200,
     "prepared_image_height": 900,
-    "model": "gpt-5.4-mini",
+    "model": "gpt-5.6-luna",
     "vision_detail": "high",
     "total_vision_pipeline_ms": 1232,
     "compare_ms": 12,
@@ -454,7 +454,7 @@ Successful response:
         "prepared_image_bytes": 128432,
         "prepared_image_width": 1200,
         "prepared_image_height": 900,
-        "model": "gpt-5.4-mini",
+        "model": "gpt-5.6-luna",
         "vision_detail": "high",
         "total_vision_pipeline_ms": 1232,
         "compare_ms": 12,
@@ -503,7 +503,7 @@ Successful response:
         "prepared_image_bytes": 117904,
         "prepared_image_width": 1100,
         "prepared_image_height": 850,
-        "model": "gpt-5.4-mini",
+        "model": "gpt-5.6-luna",
         "vision_detail": "high",
         "total_vision_pipeline_ms": 1149,
         "compare_ms": 10,
@@ -545,7 +545,7 @@ Required Railway environment variables:
 ```text
 APP_ENV=production
 OPENAI_API_KEY=<set in Railway only>
-VISION_MODEL=gpt-5.4-mini
+VISION_MODEL=gpt-5.6-luna
 ```
 
 The OpenAI key is configured only in Railway environment variables. It is not stored in source code,
