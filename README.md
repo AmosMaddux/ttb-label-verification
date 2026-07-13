@@ -158,7 +158,7 @@ example), `README.md:537` (Railway environment variables), and `.env.example:3`.
 | `VISION_TIMEOUT_S` | No | `4.5` | Timeout in seconds for OpenAI SDK clients. |
 | `MAX_LONG_EDGE` | No | `1400` | Maximum long edge, in pixels, for preprocessed label images. |
 | `JPEG_QUALITY` | No | `76` | JPEG quality used when re-encoding preprocessed label images. |
-| `MAX_BATCH_SIZE` | No | `5` | Maximum number of labels accepted by one batch request. |
+| `MAX_BATCH_SIZE` | No | `5` | Maximum number of labels accepted by one batch request. Keep this at `5` unless the frontend five-card UI limit is changed too. |
 | `BATCH_CONCURRENCY` | No | `5` | Maximum number of label images processed concurrently in a batch request. |
 
 ## Local Setup
@@ -359,7 +359,9 @@ Per-field `status` values remain `PASS` or `FAIL`. The overall verdict uses `APP
 
 ### POST /verify/batch
 
-Accepts up to five images plus matching application-data objects.
+Accepts up to five images plus matching application-data objects. The proof-of-concept UI is
+intentionally capped at five label cards, so deployments should keep `MAX_BATCH_SIZE=5` unless the
+frontend cap and user-facing copy are updated at the same time.
 
 Multipart fields:
 
