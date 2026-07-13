@@ -453,5 +453,24 @@ def test_env_model_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert service.model == "custom-vision-model"
 
 
+@pytest.mark.anyio
+async def test_service_timings_include_provider_latency_options() -> None:
+    fake = FakeVisionClient(
+        VisionClientResult(
+            structured_data=populated_payload(),
+            response_service_tier="priority",
+        ),
+        reasoning_effort="none",
+        requested_service_tier="priority",
+    )
+    service = VisionService(client=fake)
+
+    result = await service.extract_label_with_metrics(image_bytes())
+
+    assert result.timings["reasoning_effort"] == "none"
+    assert result.timings["requested_service_tier"] == "priority"
+    assert result.timings["response_service_tier"] == "priority"
+
+
 def test_sample_script_exists() -> None:
     assert Path("scripts/run_sample_extraction.py").exists()
