@@ -563,6 +563,38 @@ function updateSubmitState() {
 }
 
 /**
+ * Assign unique label/control associations inside a cloned card.
+ * @param {HTMLElement} card Label-card element to update.
+ * @param {number} suffix Unique card suffix.
+ * @returns {void}
+ */
+function assignCardControlIds(card, suffix) {
+  const imageInput = card.querySelector('[data-field="image"]');
+  const imageLabel = card.querySelector(".file-picker");
+  if (imageInput && imageLabel) {
+    imageInput.id = `label-${suffix}-image`;
+    imageLabel.htmlFor = imageInput.id;
+  }
+
+  fieldNames.forEach((field) => {
+    const row = card.querySelector(`[data-field-row="${field}"]`);
+    const label = row?.querySelector("label");
+    const control = row?.querySelector(`[data-field="${field}"]`);
+    if (!label || !control) {
+      return;
+    }
+    control.id = `label-${suffix}-${field}`;
+    label.htmlFor = control.id;
+  });
+
+  const countryOther = card.querySelector(".other-input");
+  if (countryOther) {
+    countryOther.id = `label-${suffix}-country-other`;
+    countryOther.setAttribute("aria-label", "Enter country");
+  }
+}
+
+/**
  * Add a new label card and wire its event handlers.
  * @returns {void}
  */
@@ -574,6 +606,7 @@ function addLabelCard() {
 
   cardCount += 1;
   const card = cardTemplate.content.firstElementChild.cloneNode(true);
+  assignCardControlIds(card, cardCount);
   cardsContainer.append(card);
   updateCardTitles();
   clearInlineResults(card);

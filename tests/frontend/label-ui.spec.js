@@ -145,6 +145,36 @@ test("page starts with one completeable label card and plain labels", async ({ p
   await expect(page.locator("#submit-button")).toHaveText("Check Label");
 });
 
+test("cloned label cards keep accessible label associations unique", async ({ page }) => {
+  await page.goto("/");
+
+  await page.locator("#add-label-button").click();
+  await page.locator("#add-label-button").click();
+  await expect(page.locator(".label-card")).toHaveCount(3);
+
+  const accessibilityState = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
+    const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+    const missingLabelTargets = [...document.querySelectorAll("label")]
+      .map((label) => label.getAttribute("for"))
+      .filter((targetId) => !targetId || !document.getElementById(targetId));
+    const otherInputs = [...document.querySelectorAll(".other-input")].map((input) => ({
+      id: input.id,
+      ariaLabel: input.getAttribute("aria-label"),
+    }));
+
+    return { duplicateIds, missingLabelTargets, otherInputs };
+  });
+
+  expect(accessibilityState.duplicateIds).toEqual([]);
+  expect(accessibilityState.missingLabelTargets).toEqual([]);
+  expect(accessibilityState.otherInputs).toEqual([
+    { id: "label-1-country-other", ariaLabel: "Enter country" },
+    { id: "label-2-country-other", ariaLabel: "Enter country" },
+    { id: "label-3-country-other", ariaLabel: "Enter country" },
+  ]);
+});
+
 test("batch cards update controls and expose view details", async ({ page }) => {
   await page.route("**/verify/batch", async (route) => {
     await route.fulfill({ json: mixedBatchResponse });
