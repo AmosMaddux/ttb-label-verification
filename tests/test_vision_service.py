@@ -83,8 +83,8 @@ def test_preprocessing_downscales_large_images_and_outputs_jpeg_rgb() -> None:
     prepared = prepare_image(image_bytes(size=(3000, 1200)))
 
     assert prepared.content_type == "image/jpeg"
-    assert prepared.width == 1400
-    assert prepared.height == 560
+    assert prepared.width == 800
+    assert prepared.height == 320
     assert prepared.data.startswith(b"\xff\xd8")
 
     reopened = Image.open(BytesIO(prepared.data))
@@ -99,24 +99,24 @@ def test_preprocessing_uses_default_env_values_when_unset(monkeypatch: pytest.Mo
     try:
         prepared = preprocessing.prepare_image(image_bytes(size=(3000, 1200)))
 
-        assert preprocessing.MAX_LONG_EDGE == 1400
-        assert preprocessing.JPEG_QUALITY == 76
-        assert prepared.width == 1400
-        assert prepared.height == 560
+        assert preprocessing.MAX_LONG_EDGE == 800
+        assert preprocessing.JPEG_QUALITY == 55
+        assert prepared.width == 800
+        assert prepared.height == 320
     finally:
         importlib.reload(preprocessing)
         importlib.reload(vision_service_module)
 
 
 def test_preprocessing_honors_max_long_edge_env_on_import(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MAX_LONG_EDGE", "800")
+    monkeypatch.setenv("MAX_LONG_EDGE", "600")
     importlib.reload(preprocessing)
     try:
         prepared = preprocessing.prepare_image(image_bytes(size=(3000, 1200)))
 
-        assert preprocessing.MAX_LONG_EDGE == 800
-        assert prepared.width == 800
-        assert prepared.height == 320
+        assert preprocessing.MAX_LONG_EDGE == 600
+        assert prepared.width == 600
+        assert prepared.height == 240
     finally:
         monkeypatch.delenv("MAX_LONG_EDGE", raising=False)
         importlib.reload(preprocessing)

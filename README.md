@@ -155,9 +155,9 @@ example), `README.md:537` (Railway environment variables), and `.env.example:3`.
 | `OPENAI_API_KEY` | Yes for real extraction | unset | OpenAI API key used by the vision client and live model validation. |
 | `SKIP_MODEL_CHECK` | No | unset / false | Skips the live `VISION_MODEL` startup check when set to `1`, `true`, `yes`, or `on`. |
 | `VISION_MODEL` | No | `gpt-5.4-mini` | OpenAI model used for label extraction and startup validation. |
-| `VISION_TIMEOUT_S` | No | `4.5` | Timeout in seconds for OpenAI SDK clients. |
-| `MAX_LONG_EDGE` | No | `1400` | Maximum long edge, in pixels, for preprocessed label images. |
-| `JPEG_QUALITY` | No | `76` | JPEG quality used when re-encoding preprocessed label images. |
+| `VISION_TIMEOUT_S` | No | `4.0` | Timeout in seconds for OpenAI SDK clients, tuned for the 5-second single-label target. |
+| `MAX_LONG_EDGE` | No | `800` | Maximum long edge, in pixels, for preprocessed label images, tuned for the 5-second single-label target. |
+| `JPEG_QUALITY` | No | `55` | JPEG quality used when re-encoding preprocessed label images, tuned for the 5-second single-label target. |
 | `MAX_BATCH_SIZE` | No | `5` | Maximum number of labels accepted by one batch request. Keep this at `5` unless the frontend five-card UI limit is changed too. |
 | `BATCH_CONCURRENCY` | No | `5` | Maximum number of label images processed concurrently in a batch request. |
 

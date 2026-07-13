@@ -82,7 +82,7 @@ class OpenAIVisionClient:
 
         from openai import AsyncOpenAI
 
-        timeout = env_float("VISION_TIMEOUT_S", 4.5)
+        timeout = env_float("VISION_TIMEOUT_S", 4.0)
         self._client = AsyncOpenAI(api_key=api_key, timeout=timeout)
 
     async def aclose(self) -> None:

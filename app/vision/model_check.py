@@ -69,7 +69,7 @@ async def validate_configured_model_available(client: Any | None = None) -> str:
 
         from openai import AsyncOpenAI
 
-        timeout = env_float("VISION_TIMEOUT_S", 4.5)
+        timeout = env_float("VISION_TIMEOUT_S", 4.0)
         client = AsyncOpenAI(api_key=api_key, timeout=timeout)
 
     try:

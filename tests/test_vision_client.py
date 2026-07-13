@@ -26,7 +26,7 @@ def test_openai_vision_client_uses_default_timeout(monkeypatch) -> None:
 
     OpenAIVisionClient()
 
-    assert fake_openai.calls == [{"api_key": "test-key", "timeout": 4.5}]
+    assert fake_openai.calls == [{"api_key": "test-key", "timeout": 4.0}]
 
 
 def test_openai_vision_client_honors_timeout_env(monkeypatch) -> None:
