@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import ValidationError
 
+import app.api.verify as verify_module
 from app.api.models import BatchItemResult, BatchResult, VerifyResponse
 from app.api.verify import _get_cached_vision_service, get_vision_service_provider, verify_batch_endpoint, verify_endpoint
 from app.verification.models import ExtractedLabel
@@ -713,6 +714,71 @@ async def test_batch_more_than_five_labels_returns_400() -> None:
     assert response_status(response) == 400
     assert response_body(response)["errors"]["images"] == "Maximum batch size is 5."
     assert mock.calls == 0
+
+
+def test_batch_limit_env_defaults_to_five_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MAX_BATCH_SIZE", raising=False)
+    monkeypatch.delenv("BATCH_CONCURRENCY", raising=False)
+
+    assert verify_module._positive_env_int("MAX_BATCH_SIZE", 5) == 5
+    assert verify_module._positive_env_int("BATCH_CONCURRENCY", 5) == 5
+
+
+@pytest.mark.anyio
+async def test_batch_size_env_changes_rejection_threshold_without_changing_concurrency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAX_BATCH_SIZE", "2")
+    monkeypatch.setenv("BATCH_CONCURRENCY", "5")
+    monkeypatch.setattr(verify_module, "MAX_BATCH_SIZE", verify_module._positive_env_int("MAX_BATCH_SIZE", 5))
+    monkeypatch.setattr(
+        verify_module,
+        "BATCH_CONCURRENCY",
+        verify_module._positive_env_int("BATCH_CONCURRENCY", 5),
+    )
+
+    mock = MockVisionService()
+
+    response = await verify_module.verify_batch_endpoint(
+        vision_service_provider=provider_for(mock),
+        images=[upload_file(), upload_file(), upload_file()],
+        items_json=json.dumps([form_data(), form_data(), form_data()]),
+    )
+
+    assert verify_module.MAX_BATCH_SIZE == 2
+    assert verify_module.BATCH_CONCURRENCY == 5
+    assert response_status(response) == 400
+    assert response_body(response)["errors"]["images"] == "Maximum batch size is 2."
+    assert mock.calls == 0
+
+
+@pytest.mark.anyio
+async def test_batch_concurrency_env_caps_parallel_vision_calls_without_changing_batch_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAX_BATCH_SIZE", "5")
+    monkeypatch.setenv("BATCH_CONCURRENCY", "1")
+    monkeypatch.setattr(verify_module, "MAX_BATCH_SIZE", verify_module._positive_env_int("MAX_BATCH_SIZE", 5))
+    monkeypatch.setattr(
+        verify_module,
+        "BATCH_CONCURRENCY",
+        verify_module._positive_env_int("BATCH_CONCURRENCY", 5),
+    )
+
+    mock = SlowMockVisionService(matching_extracted_label())
+
+    response = await verify_module.verify_batch_endpoint(
+        vision_service_provider=provider_for(mock),
+        images=[upload_file(), upload_file(), upload_file()],
+        items_json=json.dumps([form_data(), form_data(), form_data()]),
+    )
+
+    assert verify_module.MAX_BATCH_SIZE == 5
+    assert verify_module.BATCH_CONCURRENCY == 1
+    assert response_status(response) == 200
+    assert response_body(response)["summary"]["passed"] == 3
+    assert mock.calls == 3
+    assert mock.max_active == 1
 
 
 @pytest.mark.anyio

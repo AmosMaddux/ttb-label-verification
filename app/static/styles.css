@@ -172,7 +172,7 @@ h3 {
 
 label {
   color: #263442;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -185,7 +185,8 @@ textarea {
   border-radius: 6px;
   padding: 12px;
   color: #17202a;
-  font: inherit;
+  font-family: inherit;
+  font-size: 17px;
   font-weight: 400;
   background: #ffffff;
 }
@@ -298,7 +299,7 @@ summary:focus-visible {
   border-left: 0;
   border-radius: 0 6px 6px 0;
   background: #eef2f6;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
 }
 
@@ -313,7 +314,7 @@ summary:focus-visible {
   background: #f8fafc;
   color: #17202a;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
   text-align: center;
 }

@@ -23,12 +23,22 @@ from PIL import Image, UnidentifiedImageError
 from app.api.models import BatchItemResult, BatchResult, BatchSummary, ErrorResponse, VerifyResponse
 from app.verification.comparisons import verify_label
 from app.verification.models import ApplicationData, ExtractedLabel
+from app.vision.config import VisionConfigurationError, env_int
 from app.vision.service import VisionService
+
+
+def _positive_env_int(name: str, default: int) -> int:
+    """Read a positive integer environment variable."""
+    value = env_int(name, default)
+    if value < 1:
+        raise VisionConfigurationError(f"{name} must be at least 1; got {value}.")
+    return value
 
 
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 MAX_BATCH_UPLOAD_BYTES = 25 * 1024 * 1024
-MAX_BATCH_SIZE = 5
+MAX_BATCH_SIZE = _positive_env_int("MAX_BATCH_SIZE", 5)
+BATCH_CONCURRENCY = _positive_env_int("BATCH_CONCURRENCY", 5)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 REQUIRED_FIELDS = [
     "brand_name",
@@ -506,8 +516,8 @@ async def verify_batch_endpoint(
     if len(images) > MAX_BATCH_SIZE:
         return _error_response(
             400,
-            "Please check no more than 5 labels at a time.",
-            {"images": "Maximum batch size is 5."},
+            f"Please check no more than {MAX_BATCH_SIZE} labels at a time.",
+            {"images": f"Maximum batch size is {MAX_BATCH_SIZE}."},
         )
 
     if not items_json:
@@ -567,7 +577,7 @@ async def verify_batch_endpoint(
 
     try:
         vision_service = vision_service_provider()
-        semaphore = asyncio.Semaphore(MAX_BATCH_SIZE)
+        semaphore = asyncio.Semaphore(BATCH_CONCURRENCY)
         results = await asyncio.gather(
             *[
                 _verify_batch_item(

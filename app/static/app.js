@@ -458,11 +458,25 @@ function resetForm() {
  */
 function selectedCountryValue(card) {
   const countrySelect = card.querySelector('[data-field="country_of_origin"]');
-  const countryOther = card.querySelector(".other-input");
+  const countryOther = card.querySelector('[data-field-row="country_of_origin"] .other-input');
   if (countrySelect.value === "__other__") {
     return countryOther.value.trim();
   }
   return countrySelect.value.trim();
+}
+
+/**
+ * Read the product type value from a card, including the "Other" input path.
+ * @param {HTMLElement} card Label-card element.
+ * @returns {string} Trimmed product type value for the API payload.
+ */
+function selectedClassTypeValue(card) {
+  const classTypeSelect = card.querySelector('[data-field="class_type"]');
+  const classTypeOther = card.querySelector('[data-field-row="class_type"] .other-input');
+  if (classTypeSelect.value === "__other__") {
+    return classTypeOther.value.trim();
+  }
+  return classTypeSelect.value.trim();
 }
 
 /**
@@ -475,6 +489,10 @@ function cardData(card) {
   fieldNames.forEach((name) => {
     if (name === "country_of_origin") {
       values[name] = selectedCountryValue(card);
+      return;
+    }
+    if (name === "class_type") {
+      values[name] = selectedClassTypeValue(card);
       return;
     }
     const input = card.querySelector(`[data-field="${name}"]`);
@@ -517,6 +535,9 @@ function isCardComplete(card) {
   return fieldNames.every((name) => {
     if (name === "country_of_origin") {
       return selectedCountryValue(card);
+    }
+    if (name === "class_type") {
+      return selectedClassTypeValue(card);
     }
     const input = card.querySelector(`[data-field="${name}"]`);
     return String(input.value || "").trim();
@@ -563,6 +584,44 @@ function updateSubmitState() {
 }
 
 /**
+ * Assign unique label/control associations inside a cloned card.
+ * @param {HTMLElement} card Label-card element to update.
+ * @param {number} suffix Unique card suffix.
+ * @returns {void}
+ */
+function assignCardControlIds(card, suffix) {
+  const imageInput = card.querySelector('[data-field="image"]');
+  const imageLabel = card.querySelector(".file-picker");
+  if (imageInput && imageLabel) {
+    imageInput.id = `label-${suffix}-image`;
+    imageLabel.htmlFor = imageInput.id;
+  }
+
+  fieldNames.forEach((field) => {
+    const row = card.querySelector(`[data-field-row="${field}"]`);
+    const label = row?.querySelector("label");
+    const control = row?.querySelector(`[data-field="${field}"]`);
+    if (!label || !control) {
+      return;
+    }
+    control.id = `label-${suffix}-${field}`;
+    label.htmlFor = control.id;
+  });
+
+  const classTypeOther = card.querySelector('[data-field-row="class_type"] .other-input');
+  if (classTypeOther) {
+    classTypeOther.id = `label-${suffix}-class-type-other`;
+    classTypeOther.setAttribute("aria-label", "Enter product type");
+  }
+
+  const countryOther = card.querySelector('[data-field-row="country_of_origin"] .other-input');
+  if (countryOther) {
+    countryOther.id = `label-${suffix}-country-other`;
+    countryOther.setAttribute("aria-label", "Enter country");
+  }
+}
+
+/**
  * Add a new label card and wire its event handlers.
  * @returns {void}
  */
@@ -574,6 +633,7 @@ function addLabelCard() {
 
   cardCount += 1;
   const card = cardTemplate.content.firstElementChild.cloneNode(true);
+  assignCardControlIds(card, cardCount);
   cardsContainer.append(card);
   updateCardTitles();
   clearInlineResults(card);
@@ -581,14 +641,17 @@ function addLabelCard() {
   const imageInput = card.querySelector('[data-field="image"]');
   const fileName = card.querySelector("[data-file-name]");
   const imagePreview = card.querySelector(".image-preview");
+  const classTypeSelect = card.querySelector('[data-field="class_type"]');
+  const classTypeOther = card.querySelector('[data-field-row="class_type"] .other-input');
   const countrySelect = card.querySelector('[data-field="country_of_origin"]');
-  const countryOther = card.querySelector(".other-input");
+  const countryOther = card.querySelector('[data-field-row="country_of_origin"] .other-input');
 
   imageInput.addEventListener("change", () => {
     const file = imageInput.files[0];
     if (!file) {
       fileName.textContent = "Choose label photo";
       imagePreview.removeAttribute("src");
+      imagePreview.alt = "";
       imagePreview.classList.remove("visible");
       updateSubmitState();
       return;
@@ -596,7 +659,19 @@ function addLabelCard() {
 
     fileName.textContent = file.name;
     imagePreview.src = URL.createObjectURL(file);
+    imagePreview.alt = `Preview of ${file.name}`;
     imagePreview.classList.add("visible");
+    updateSubmitState();
+  });
+
+  classTypeSelect.addEventListener("change", () => {
+    const showOther = classTypeSelect.value === "__other__";
+    classTypeOther.hidden = !showOther;
+    if (showOther) {
+      classTypeOther.focus();
+    } else {
+      classTypeOther.value = "";
+    }
     updateSubmitState();
   });
 

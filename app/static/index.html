@@ -68,7 +68,7 @@
               <h3>Label photo</h3>
               <label class="file-picker">
                 <span data-file-name>Choose label photo</span>
-                <input data-field="image" type="file" accept="image/jpeg,image/png,image/webp" required>
+                <input data-field="image" type="file" accept="image/*" required>
               </label>
               <img class="image-preview" alt="">
             </section>
@@ -88,7 +88,25 @@
 
                 <div class="field-row" data-field-row="class_type">
                   <label>Product type</label>
-                  <input data-field="class_type" required>
+                  <div class="stacked-control">
+                    <select data-field="class_type" required>
+                      <option value="">Choose product type</option>
+                      <option>Wine</option>
+                      <option>Red Wine</option>
+                      <option>White Wine</option>
+                      <option>Rosé</option>
+                      <option>Sparkling Wine</option>
+                      <option>Whiskey</option>
+                      <option>Vodka</option>
+                      <option>Gin</option>
+                      <option>Rum</option>
+                      <option>Tequila</option>
+                      <option>Beer</option>
+                      <option>Cider</option>
+                      <option value="__other__">Other</option>
+                    </select>
+                    <input class="other-input" type="text" placeholder="Enter product type" hidden>
+                  </div>
                   <div class="inline-result pending" data-result-for="class_type" aria-live="polite">
                     <span class="result-status">Not checked</span>
                     <span class="result-value">Found on label will appear here.</span>
