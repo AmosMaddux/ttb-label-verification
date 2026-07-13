@@ -148,12 +148,22 @@ alternatives and `gpt-5.6-luna` missed the under-5-second target by a wide margi
 
 | Model | API latency p50 | API latency p95 |
 | --- | ---: | ---: |
-| `gpt-5.4-nano` | 2377 ms | 6722 ms |
+| `gpt-5.4-nano` | 2321 ms | 3400 ms |
 | `gpt-5.4-mini` | 3218 ms | 7615 ms |
 | `gpt-4o-mini` | 8488 ms | 13607 ms |
 | `gpt-4.1-mini` | 13437 ms | 13627 ms |
 | `gpt-4.1-nano` | 13504 ms | 13644 ms |
 | `gpt-5.6-luna` | 13791 ms | 13949 ms |
+
+After selecting `gpt-5.4-nano`, a second deployed benchmark compared the baseline request with
+both latency options enabled: `VISION_REASONING_EFFORT=none` and `OPENAI_SERVICE_TIER=priority`.
+This reduced p50 latency from 2449 ms to 2321 ms, a 128 ms / 5.2% improvement, and reduced p95
+latency from 3506 ms to 3400 ms, a 106 ms / 3.0% improvement.
+
+| `gpt-5.4-nano` configuration | API latency p50 | API latency p95 |
+| --- | ---: | ---: |
+| Baseline, latency options unset | 2449 ms | 3506 ms |
+| `VISION_REASONING_EFFORT=none`, `OPENAI_SERVICE_TIER=priority` | 2321 ms | 3400 ms |
 
 The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
 configured model name in sync across the default model constant in `app/vision/service.py`, this
