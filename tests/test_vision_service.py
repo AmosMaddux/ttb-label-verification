@@ -243,7 +243,7 @@ async def test_service_returns_complete_structured_data_from_fake_client() -> No
     extracted = await service.extract_label(image_bytes())
 
     assert fake.calls == 1
-    assert fake.last_model == "gpt-5.6-luna"
+    assert fake.last_model == "gpt-5.4-nano"
     assert fake.last_detail == "high"
     assert extracted.brand_name == "Acme Reserve"
     assert extracted.government_warning == "GOVERNMENT WARNING: exact text"

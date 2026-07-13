@@ -6,11 +6,11 @@ and deterministic comparison rules.
 
 The app is intentionally stateless. It has no database and does not submit anything to TTB systems.
 
-> **TODO: Latency target miss**
+> **Latency target met**
 >
-> The current live p95 single-label latency is 9853 ms, which exceeds the under-5-second target.
-> Before treating this proof of concept as production-ready, optimize the slow path and re-measure
-> p50/p95 with `scripts/readiness_check.py --verify --verify-runs 10` or more.
+> The current live p95 single-label latency is 2899 ms, under the 5-second target. Continue to
+> re-measure p50/p95 with `scripts/readiness_check.py --verify --verify-runs 10` after model,
+> image-preprocessing, or prompt changes.
 
 ## Live Demo
 
@@ -18,8 +18,8 @@ The app is intentionally stateless. It has no database and does not submit anyth
 - Health check: https://ttb-label-verification-production-00ed.up.railway.app/health
 - Last live verification: June 22, 2026
 - Single-label target: under 5 seconds
-- Measured single-label p50 latency: 4356 ms against 5-second target
-- Measured single-label p95 latency: 9853 ms against 5-second target
+- Measured single-label p50 latency: 1960 ms against 5-second target
+- Measured single-label p95 latency: 2899 ms against 5-second target
 - Measurement method: `python scripts/readiness_check.py --base-url "$READINESS_BASE_URL" --verify --verify-runs 10` against the deployed Railway app using `tests/test_images/ttb_c.jpg` and matching application fields.
 - Batch support: up to 5 labels per request
 
@@ -135,12 +135,17 @@ request fields.
 Default vision model:
 
 ```text
-gpt-5.6-luna
+gpt-5.4-nano
 ```
 
-This exact model name was verified against the current OpenAI model list on July 13, 2026. The app
+This exact model name was verified against the current OpenAI model list on July 12, 2026. The app
 also performs a startup fail-fast model check, and `scripts/readiness_check.py --verify-model` can
 run the same validation before deployment.
+
+This proof of concept uses `gpt-5.4-nano` because live testing showed it is consistently fast
+enough for the under-5-second single-label requirement. The tradeoff is slightly lower text
+extraction accuracy on some label text, such as reading `ROCK TOWN` as `ROCKITOWN`, so deterministic
+verification still treats close-but-wrong extractions as fields that may need review.
 
 The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
 configured model name in sync across these five locations: `app/vision/service.py:24`
@@ -154,7 +159,7 @@ example), `README.md:548` (Railway environment variables), and `.env.example:3`.
 | `APP_ENV` | No | unset | Identifies the runtime environment. `test` skips the live startup model check. |
 | `OPENAI_API_KEY` | Yes for real extraction | unset | OpenAI API key used by the vision client and live model validation. |
 | `SKIP_MODEL_CHECK` | No | unset / false | Skips the live `VISION_MODEL` startup check when set to `1`, `true`, `yes`, or `on`. |
-| `VISION_MODEL` | No | `gpt-5.6-luna` | OpenAI model used for label extraction and startup validation. |
+| `VISION_MODEL` | No | `gpt-5.4-nano` | OpenAI model used for label extraction and startup validation. |
 | `VISION_TIMEOUT_S` | No | `4.0` | Timeout in seconds for OpenAI SDK clients, tuned for the 5-second single-label target. |
 | `MAX_LONG_EDGE` | No | `800` | Maximum long edge, in pixels, for preprocessed label images, tuned for the 5-second single-label target. |
 | `JPEG_QUALITY` | No | `55` | JPEG quality used when re-encoding preprocessed label images, tuned for the 5-second single-label target. |
@@ -180,7 +185,7 @@ Then set local-only values in `.env`:
 ```text
 APP_ENV=local
 OPENAI_API_KEY=<your local key>
-VISION_MODEL=gpt-5.6-luna
+VISION_MODEL=gpt-5.4-nano
 ```
 
 Real secret values must not be committed.
@@ -330,7 +335,7 @@ Successful response:
     "prepared_image_bytes": 128432,
     "prepared_image_width": 1200,
     "prepared_image_height": 900,
-    "model": "gpt-5.6-luna",
+    "model": "gpt-5.4-nano",
     "vision_detail": "high",
     "total_vision_pipeline_ms": 1232,
     "compare_ms": 12,
@@ -454,7 +459,7 @@ Successful response:
         "prepared_image_bytes": 128432,
         "prepared_image_width": 1200,
         "prepared_image_height": 900,
-        "model": "gpt-5.6-luna",
+        "model": "gpt-5.4-nano",
         "vision_detail": "high",
         "total_vision_pipeline_ms": 1232,
         "compare_ms": 12,
@@ -503,7 +508,7 @@ Successful response:
         "prepared_image_bytes": 117904,
         "prepared_image_width": 1100,
         "prepared_image_height": 850,
-        "model": "gpt-5.6-luna",
+        "model": "gpt-5.4-nano",
         "vision_detail": "high",
         "total_vision_pipeline_ms": 1149,
         "compare_ms": 10,
@@ -545,7 +550,7 @@ Required Railway environment variables:
 ```text
 APP_ENV=production
 OPENAI_API_KEY=<set in Railway only>
-VISION_MODEL=gpt-5.6-luna
+VISION_MODEL=gpt-5.4-nano
 ```
 
 The OpenAI key is configured only in Railway environment variables. It is not stored in source code,

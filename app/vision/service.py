@@ -21,7 +21,7 @@ from app.vision.client import OpenAIVisionClient, VisionClientProtocol
 from app.vision.preprocessing import ImagePreprocessingError, prepare_image
 
 
-DEFAULT_VISION_MODEL = "gpt-5.6-luna"
+DEFAULT_VISION_MODEL = "gpt-5.4-nano"
 VISION_DETAIL = "high"
 logger = logging.getLogger(__name__)
 
