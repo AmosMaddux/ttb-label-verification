@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 
 const fields = {
   brand_name: "Acme Reserve",
-  class_type: "Red Wine",
+  class_type: "Wine",
   producer: "Acme Winery LLC",
   country_of_origin: "United States",
   abv: "13.5",
@@ -21,7 +21,7 @@ const passResponse = {
       errors: {},
       extracted_label: {
         brand_name: "Acme Reserve",
-        class_type: "Red Wine",
+        class_type: "Wine",
         producer: "Acme Winery LLC",
         country_of_origin: "USA",
         abv: "13.5% Alc. by Vol.",
