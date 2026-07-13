@@ -121,7 +121,7 @@ async function setImage(card, name = "label.jpg") {
 async function fillCard(card) {
   await setImage(card);
   await card.locator('[data-field="brand_name"]').fill(fields.brand_name);
-  await card.locator('[data-field="class_type"]').fill(fields.class_type);
+  await card.locator('[data-field="class_type"]').selectOption(fields.class_type);
   await card.locator('[data-field="producer"]').fill(fields.producer);
   await card.locator('[data-field="country_of_origin"]').selectOption(fields.country_of_origin);
   await card.locator('[data-field="abv"]').fill(fields.abv);
@@ -134,7 +134,7 @@ test("page starts with one completeable label card and plain labels", async ({ p
 
   await expect(page.locator(".label-card")).toHaveCount(1);
   await expect(page.getByText("Brand name")).toBeVisible();
-  await expect(page.getByText("Product type")).toBeVisible();
+  await expect(page.locator('label[for="label-1-class_type"]')).toHaveText("Product type");
   await expect(page.getByText("Producer or company")).toBeVisible();
   await expect(page.getByText("Government warning")).toBeVisible();
   await expect(page.getByText(/mode selector/i)).toHaveCount(0);
@@ -169,10 +169,34 @@ test("cloned label cards keep accessible label associations unique", async ({ pa
   expect(accessibilityState.duplicateIds).toEqual([]);
   expect(accessibilityState.missingLabelTargets).toEqual([]);
   expect(accessibilityState.otherInputs).toEqual([
+    { id: "label-1-class-type-other", ariaLabel: "Enter product type" },
     { id: "label-1-country-other", ariaLabel: "Enter country" },
+    { id: "label-2-class-type-other", ariaLabel: "Enter product type" },
     { id: "label-2-country-other", ariaLabel: "Enter country" },
+    { id: "label-3-class-type-other", ariaLabel: "Enter product type" },
     { id: "label-3-country-other", ariaLabel: "Enter country" },
   ]);
+});
+
+test("product type other option submits the typed value", async ({ page }) => {
+  let submittedItems = null;
+  await page.route("**/verify/batch", async (route) => {
+    const postData = route.request().postData() || "";
+    const match = postData.match(/name="items_json"\r\n\r\n([^\r]+)\r\n/);
+    submittedItems = match ? JSON.parse(match[1]) : null;
+    await route.fulfill({ json: passResponse });
+  });
+  await page.goto("/");
+
+  const card = page.locator(".label-card").first();
+  await fillCard(card);
+  await card.locator('[data-field="class_type"]').selectOption("__other__");
+  await expect(card.locator('[data-field-row="class_type"] .other-input')).toBeVisible();
+  await card.locator('[data-field-row="class_type"] .other-input').fill("Agave Spirit");
+  await expect(page.locator("#submit-button")).toBeEnabled();
+  await page.locator("#submit-button").click();
+
+  expect(submittedItems?.[0]?.class_type).toBe("Agave Spirit");
 });
 
 test("batch cards update controls and expose view details", async ({ page }) => {

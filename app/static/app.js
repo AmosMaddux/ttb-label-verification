@@ -458,11 +458,25 @@ function resetForm() {
  */
 function selectedCountryValue(card) {
   const countrySelect = card.querySelector('[data-field="country_of_origin"]');
-  const countryOther = card.querySelector(".other-input");
+  const countryOther = card.querySelector('[data-field-row="country_of_origin"] .other-input');
   if (countrySelect.value === "__other__") {
     return countryOther.value.trim();
   }
   return countrySelect.value.trim();
+}
+
+/**
+ * Read the product type value from a card, including the "Other" input path.
+ * @param {HTMLElement} card Label-card element.
+ * @returns {string} Trimmed product type value for the API payload.
+ */
+function selectedClassTypeValue(card) {
+  const classTypeSelect = card.querySelector('[data-field="class_type"]');
+  const classTypeOther = card.querySelector('[data-field-row="class_type"] .other-input');
+  if (classTypeSelect.value === "__other__") {
+    return classTypeOther.value.trim();
+  }
+  return classTypeSelect.value.trim();
 }
 
 /**
@@ -475,6 +489,10 @@ function cardData(card) {
   fieldNames.forEach((name) => {
     if (name === "country_of_origin") {
       values[name] = selectedCountryValue(card);
+      return;
+    }
+    if (name === "class_type") {
+      values[name] = selectedClassTypeValue(card);
       return;
     }
     const input = card.querySelector(`[data-field="${name}"]`);
@@ -517,6 +535,9 @@ function isCardComplete(card) {
   return fieldNames.every((name) => {
     if (name === "country_of_origin") {
       return selectedCountryValue(card);
+    }
+    if (name === "class_type") {
+      return selectedClassTypeValue(card);
     }
     const input = card.querySelector(`[data-field="${name}"]`);
     return String(input.value || "").trim();
@@ -587,7 +608,13 @@ function assignCardControlIds(card, suffix) {
     label.htmlFor = control.id;
   });
 
-  const countryOther = card.querySelector(".other-input");
+  const classTypeOther = card.querySelector('[data-field-row="class_type"] .other-input');
+  if (classTypeOther) {
+    classTypeOther.id = `label-${suffix}-class-type-other`;
+    classTypeOther.setAttribute("aria-label", "Enter product type");
+  }
+
+  const countryOther = card.querySelector('[data-field-row="country_of_origin"] .other-input');
   if (countryOther) {
     countryOther.id = `label-${suffix}-country-other`;
     countryOther.setAttribute("aria-label", "Enter country");
@@ -614,8 +641,10 @@ function addLabelCard() {
   const imageInput = card.querySelector('[data-field="image"]');
   const fileName = card.querySelector("[data-file-name]");
   const imagePreview = card.querySelector(".image-preview");
+  const classTypeSelect = card.querySelector('[data-field="class_type"]');
+  const classTypeOther = card.querySelector('[data-field-row="class_type"] .other-input');
   const countrySelect = card.querySelector('[data-field="country_of_origin"]');
-  const countryOther = card.querySelector(".other-input");
+  const countryOther = card.querySelector('[data-field-row="country_of_origin"] .other-input');
 
   imageInput.addEventListener("change", () => {
     const file = imageInput.files[0];
@@ -630,6 +659,17 @@ function addLabelCard() {
     fileName.textContent = file.name;
     imagePreview.src = URL.createObjectURL(file);
     imagePreview.classList.add("visible");
+    updateSubmitState();
+  });
+
+  classTypeSelect.addEventListener("change", () => {
+    const showOther = classTypeSelect.value === "__other__";
+    classTypeOther.hidden = !showOther;
+    if (showOther) {
+      classTypeOther.focus();
+    } else {
+      classTypeOther.value = "";
+    }
     updateSubmitState();
   });
 
