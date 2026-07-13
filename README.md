@@ -6,12 +6,6 @@ and deterministic comparison rules.
 
 The app is intentionally stateless. It has no database and does not submit anything to TTB systems.
 
-> **Latency target met**
->
-> The current live p95 single-label latency is 2899 ms, under the 5-second target. Continue to
-> re-measure p50/p95 with `scripts/readiness_check.py --verify --verify-runs 10` after model,
-> image-preprocessing, or prompt changes.
-
 ## Live Demo
 
 - App: https://ttb-label-verification-production-00ed.up.railway.app/
@@ -581,10 +575,22 @@ The UI is designed for a non-technical user to complete a check without instruct
 
 - Vision extraction quality depends on image clarity, glare, cropping, and label layout.
 - Poor images may return partial extracted data and produce `NEEDS REVIEW`.
+- The fast `gpt-5.4-nano` model can occasionally invent plausible nearby brand or producer names
+  that are not printed on the bottle, such as returning `Barefoot Wine Company` instead of
+  `Barefoot Wines`, or `Sagamore Distillery` instead of `Sagamore Reserve`.
 - Government-warning matching is intentionally strict and may fail for small OCR differences.
 - Railway free-tier behavior may add cold-start latency.
 - The app does not replace legal review.
 - The app does not submit, retrieve, or validate records with TTB systems.
+
+## Potential Fixes
+
+- Add prompt language that explicitly tells the vision model not to infer, expand, or normalize
+  brand and producer names beyond text visible on the label.
+- Use extracted `raw_text` as a grounding check before accepting brand or producer values that do
+  not appear in the transcription.
+- Add real-label regression fixtures for observed hallucinations such as `Barefoot Wine Company`
+  and `Sagamore Distillery`, then tune prompts or comparison handling against those examples.
 
 ## Secret Handling
 
