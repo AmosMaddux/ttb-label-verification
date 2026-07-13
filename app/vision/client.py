@@ -14,6 +14,9 @@ from typing import Any, Mapping, Protocol
 
 from app.vision.config import VisionConfigurationError, env_float
 
+ALLOWED_REASONING_EFFORTS = frozenset({"none", "minimal", "low", "medium", "high", "xhigh"})
+ALLOWED_SERVICE_TIERS = frozenset({"auto", "default", "flex", "scale", "priority"})
+
 
 @dataclass(frozen=True)
 class VisionClientResult:
@@ -29,6 +32,7 @@ class VisionClientResult:
 
     structured_data: Mapping[str, Any] | None = None
     raw_json: str | None = None
+    response_service_tier: str | None = None
 
 
 class VisionClientProtocol(Protocol):
@@ -83,6 +87,8 @@ class OpenAIVisionClient:
         from openai import AsyncOpenAI
 
         timeout = env_float("VISION_TIMEOUT_S", 4.0)
+        self.reasoning_effort = _env_choice("VISION_REASONING_EFFORT", ALLOWED_REASONING_EFFORTS)
+        self.requested_service_tier = _env_choice("OPENAI_SERVICE_TIER", ALLOWED_SERVICE_TIERS)
         self._client = AsyncOpenAI(api_key=api_key, timeout=timeout)
 
     async def aclose(self) -> None:
@@ -115,9 +121,9 @@ class OpenAIVisionClient:
             text as a fallback for the service parser.
         """
         image_url = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("ascii")
-        response = await self._client.responses.create(
-            model=model,
-            input=[
+        request: dict[str, Any] = {
+            "model": model,
+            "input": [
                 {
                     "role": "user",
                     "content": [
@@ -126,7 +132,7 @@ class OpenAIVisionClient:
                     ],
                 }
             ],
-            text={
+            "text": {
                 "format": {
                     "type": "json_schema",
                     "name": "extracted_label",
@@ -134,11 +140,36 @@ class OpenAIVisionClient:
                     "strict": True,
                 }
             },
-        )
+        }
+        if self.reasoning_effort is not None:
+            request["reasoning"] = {"effort": self.reasoning_effort}
+        if self.requested_service_tier is not None:
+            request["service_tier"] = self.requested_service_tier
+
+        response = await self._client.responses.create(**request)
 
         structured = _find_parsed_output(response)
         raw_json = getattr(response, "output_text", None)
-        return VisionClientResult(structured_data=structured, raw_json=raw_json)
+        response_service_tier = getattr(response, "service_tier", None)
+        return VisionClientResult(
+            structured_data=structured,
+            raw_json=raw_json,
+            response_service_tier=response_service_tier if isinstance(response_service_tier, str) else None,
+        )
+
+
+def _env_choice(name: str, allowed_values: frozenset[str]) -> str | None:
+    """Read an optional string environment variable with allow-list validation."""
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return None
+    value = raw_value.strip()
+    if not value:
+        return None
+    if value not in allowed_values:
+        allowed = ", ".join(sorted(allowed_values))
+        raise VisionConfigurationError(f"{name} must be one of: {allowed}; got {raw_value!r}.")
+    return value
 
 
 def _find_parsed_output(response: object) -> Mapping[str, Any] | None:

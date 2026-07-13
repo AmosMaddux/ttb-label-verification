@@ -21,7 +21,13 @@ class FakeVisionClient:
         recorded prompt/schema/model/detail metadata for assertions.
     """
 
-    def __init__(self, result: VisionClientResult | Exception) -> None:
+    def __init__(
+        self,
+        result: VisionClientResult | Exception,
+        *,
+        reasoning_effort: str | None = None,
+        requested_service_tier: str | None = None,
+    ) -> None:
         """Store the fixed fake result and initialize call tracking.
 
         Inputs:
@@ -32,6 +38,8 @@ class FakeVisionClient:
             A fake client ready for test use.
         """
         self.result = result
+        self.reasoning_effort = reasoning_effort
+        self.requested_service_tier = requested_service_tier
         self.calls = 0
         self.last_prompt: str | None = None
         self.last_schema: dict | None = None

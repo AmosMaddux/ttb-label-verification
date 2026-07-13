@@ -17,7 +17,7 @@ from typing import Any, Mapping
 from pydantic import ValidationError
 
 from app.verification.models import ExtractedLabel
-from app.vision.client import OpenAIVisionClient, VisionClientProtocol
+from app.vision.client import OpenAIVisionClient, VisionClientProtocol, VisionClientResult
 from app.vision.preprocessing import ImagePreprocessingError, prepare_image
 
 
@@ -269,6 +269,7 @@ class VisionService:
                     "vision_detail": self.detail,
                     "vision_extraction_failed": True,
                     "vision_total_ms": _elapsed_ms(total_start),
+                    **self._provider_diagnostics(),
                 },
             )
 
@@ -295,6 +296,7 @@ class VisionService:
                     "vision_detail": self.detail,
                     "vision_extraction_failed": True,
                     "vision_total_ms": _elapsed_ms(total_start),
+                    **self._provider_diagnostics(),
                 },
             )
 
@@ -310,8 +312,17 @@ class VisionService:
                 "vision_detail": self.detail,
                 "vision_extraction_failed": False,
                 "vision_total_ms": _elapsed_ms(total_start),
+                **self._provider_diagnostics(result),
             },
         )
+
+    def _provider_diagnostics(self, result: VisionClientResult | None = None) -> dict[str, str | None]:
+        """Return configured provider options for API timing metadata."""
+        return {
+            "reasoning_effort": getattr(self.client, "reasoning_effort", None),
+            "requested_service_tier": getattr(self.client, "requested_service_tier", None),
+            "response_service_tier": result.response_service_tier if result is not None else None,
+        }
 
 
 def _elapsed_ms(start: float, *, end: float | None = None) -> int:

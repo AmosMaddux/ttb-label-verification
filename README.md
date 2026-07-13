@@ -142,10 +142,23 @@ extraction accuracy on some label text, such as reading separate words as a sing
 so deterministic verification still treats close-but-wrong extractions as fields that may need
 review.
 
+The latest deployed benchmark ran 10 sequential live `/verify` requests per model. `gpt-5.4-nano`
+was the fastest model overall, with `gpt-5.4-mini` also viable but slower. The older mini/nano
+alternatives and `gpt-5.6-luna` missed the under-5-second target by a wide margin.
+
+| Model | API latency p50 | API latency p95 |
+| --- | ---: | ---: |
+| `gpt-5.4-nano` | 2377 ms | 6722 ms |
+| `gpt-5.4-mini` | 3218 ms | 7615 ms |
+| `gpt-4o-mini` | 8488 ms | 13607 ms |
+| `gpt-4.1-mini` | 13437 ms | 13627 ms |
+| `gpt-4.1-nano` | 13504 ms | 13644 ms |
+| `gpt-5.6-luna` | 13791 ms | 13949 ms |
+
 The model can be changed with the `VISION_MODEL` environment variable. When changing it, keep the
-configured model name in sync across these five locations: `app/vision/service.py:24`
-(`DEFAULT_VISION_MODEL`), `README.md:138` (this model block), `README.md:183` (local `.env`
-example), `README.md:548` (Railway environment variables), and `.env.example:3`.
+configured model name in sync across the default model constant in `app/vision/service.py`, this
+README's model block, local `.env` example, Railway environment variables example, and
+`.env.example`.
 
 ## Environment Variables
 
@@ -156,6 +169,8 @@ example), `README.md:548` (Railway environment variables), and `.env.example:3`.
 | `SKIP_MODEL_CHECK` | No | unset / false | Skips the live `VISION_MODEL` startup check when set to `1`, `true`, `yes`, or `on`. |
 | `VISION_MODEL` | No | `gpt-5.4-nano` | OpenAI model used for label extraction and startup validation. |
 | `VISION_TIMEOUT_S` | No | `4.0` | Timeout in seconds for OpenAI SDK clients, tuned for the 5-second single-label target. |
+| `VISION_REASONING_EFFORT` | No | unset | Optional Responses API reasoning effort for latency experiments. Allowed values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. |
+| `OPENAI_SERVICE_TIER` | No | unset | Optional Responses API service tier for latency experiments. Allowed values: `auto`, `default`, `flex`, `scale`, `priority`. |
 | `MAX_LONG_EDGE` | No | `800` | Maximum long edge, in pixels, for preprocessed label images, tuned for the 5-second single-label target. |
 | `JPEG_QUALITY` | No | `55` | JPEG quality used when re-encoding preprocessed label images, tuned for the 5-second single-label target. |
 | `MAX_BATCH_SIZE` | No | `5` | Maximum number of labels accepted by one batch request. Keep this at `5` unless the frontend five-card UI limit is changed too. |
@@ -181,6 +196,8 @@ Then set local-only values in `.env`:
 APP_ENV=local
 OPENAI_API_KEY=<your local key>
 VISION_MODEL=gpt-5.4-nano
+VISION_REASONING_EFFORT=
+OPENAI_SERVICE_TIER=
 ```
 
 Real secret values must not be committed.
