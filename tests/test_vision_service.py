@@ -235,6 +235,21 @@ def test_prompt_guides_raw_text_and_confidence_extraction() -> None:
         assert phrase in prompt
 
 
+def test_prompt_requires_literal_evidence_for_brand_and_producer() -> None:
+    prompt = EXTRACTION_PROMPT.lower()
+
+    for phrase in [
+        "transcribe raw_text before choosing",
+        "derive brand_name and producer only from text visible in raw_text",
+        "do not expand, normalize, infer, substitute, or repair",
+        "outside knowledge",
+        "business suffixes",
+        "alternate company names",
+        "return null instead of guessing",
+    ]:
+        assert phrase in prompt
+
+
 @pytest.mark.anyio
 async def test_service_returns_complete_structured_data_from_fake_client() -> None:
     fake = FakeVisionClient(VisionClientResult(structured_data=populated_payload()))

@@ -33,6 +33,8 @@ Extract these fields:
 
 1. brand_name
    The brand name shown on the label.
+   Copy only the brand text that is visibly present on the label. Do not expand, infer, substitute,
+   or correct the brand name from outside knowledge.
 
 2. class_type
    The product type or class shown on the label, such as wine, red wine, vodka, whiskey, beer, cider, or another visible class/type statement.
@@ -40,6 +42,8 @@ Extract these fields:
 3. producer
    The producer, bottler, importer, winery, brewery, distillery, or responsible company shown on the label.
    Return only the business/entity name when present. Do not include role phrases or location text.
+   Copy only the business/entity name that is visibly present on the label. Do not add business suffixes,
+   producer-role words, or alternate company names unless they are visible.
    For example, if the label says "VINTED & BOTTLED BY BAREFOOT WINES, MODESTO, CALIFORNIA",
    return "BAREFOOT WINES". If it says "BOTTLED BY SANTA RITA, SANTIAGO, CHILE", return
    "SANTA RITA".
@@ -83,6 +87,11 @@ Extract these fields:
 Rules:
 - If a field is not visible, unreadable, blocked by glare, too blurry, cut off, or uncertain, return null for that field.
 - Do not guess or infer values from context.
+- Transcribe raw_text before choosing the structured field values.
+- Derive brand_name and producer only from text visible in raw_text.
+- Do not expand, normalize, infer, substitute, or repair brand_name or producer using outside
+  knowledge about alcohol brands, producers, owners, or common company names.
+- If brand_name or producer text is ambiguous, return null instead of guessing.
 - For producer, remove role prefixes such as VINTED & BOTTLED BY, BOTTLED BY, PRODUCED BY,
   IMPORTED BY, CELLARED BY, DISTRIBUTED BY, and remove trailing city/state/country location suffixes.
 - For country_of_origin, strongly prefer country-level output. Do not return state, province, city,
