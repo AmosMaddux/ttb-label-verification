@@ -650,6 +650,8 @@ only passing curated examples.
 - Keep expanding country, state, province, and wine-region normalization for common wine-exporting
   countries so labels that show places like California, Mendoza, Bordeaux, Rioja, Marlborough, or
   Western Cape compare against their countries correctly.
+- Add alcohol class/type subtype normalization so common subtype labels compare against their main
+  TTB-style categories, such as Chardonnay matching Wine and Rye matching Whiskey.
 - Preserve strict government-warning wording checks while allowing harmless whitespace and line-break
   differences from OCR extraction.
 - Add more real-label regression fixtures beyond the current Barefoot-style cases, especially for
