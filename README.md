@@ -148,7 +148,7 @@ alternatives and `gpt-5.6-luna` missed the under-5-second target by a wide margi
 
 | Model | API latency p50 | API latency p95 |
 | --- | ---: | ---: |
-| `gpt-5.4-nano` | 2377 ms | 6722 ms |
+| `gpt-5.4-nano` | 2321 ms | 3400 ms |
 | `gpt-5.4-mini` | 3218 ms | 7615 ms |
 | `gpt-4o-mini` | 8488 ms | 13607 ms |
 | `gpt-4.1-mini` | 13437 ms | 13627 ms |
