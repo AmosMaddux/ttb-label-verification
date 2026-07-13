@@ -158,6 +158,8 @@ example), `README.md:537` (Railway environment variables), and `.env.example:3`.
 | `VISION_TIMEOUT_S` | No | `4.5` | Timeout in seconds for OpenAI SDK clients. |
 | `MAX_LONG_EDGE` | No | `1400` | Maximum long edge, in pixels, for preprocessed label images. |
 | `JPEG_QUALITY` | No | `76` | JPEG quality used when re-encoding preprocessed label images. |
+| `MAX_BATCH_SIZE` | No | `5` | Maximum number of labels accepted by one batch request. |
+| `BATCH_CONCURRENCY` | No | `5` | Maximum number of label images processed concurrently in a batch request. |
 
 ## Local Setup
 
